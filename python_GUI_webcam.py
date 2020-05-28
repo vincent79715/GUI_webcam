@@ -5,7 +5,7 @@ from tkinter import *
 from PIL import Image,ImageTk
 
 def read_camera():
-    global frame
+    global frame,last_time
     ret, frame = cap.read()
     img = ImageTk.PhotoImage(image=Image.fromarray(frame[:,:,::-1]))
     picturebox.config(image=img)
@@ -52,25 +52,25 @@ start_time,last_time = time.time(),time.time()
 
 root = Tk()
 root.title("Capture tool")
-root.geometry("750x730+300+100")
+root.geometry("685x725+300+0")
 root.bind("<Key>",KeyPress)
 
-scale_interval = Scale(root, label='save 1 image/sec', from_=1, to=30, orient=HORIZONTAL,length=480, showvalue=0, tickinterval=2, resolution=1, command=scale_interval_scroll)
-scale_interval.pack()
+
+scale_interval = Scale(root, label='save 1 image/sec', from_=1, to=30, orient=HORIZONTAL,length=480, showvalue=0, tickinterval=2, borderwidth=1, command=scale_interval_scroll)
+scale_interval.grid(row=0,columnspan=2)
 scale_interval.set(3)
-scale_continue = Scale(root, label='continue save 1 sec', from_=1, to=60, orient=HORIZONTAL,length=480, showvalue=0, tickinterval=4, resolution=1, command=scale_continue_scroll)
-scale_continue.pack()
+scale_continue = Scale(root, label='continue save 1 sec', from_=1, to=60, orient=HORIZONTAL,length=480, showvalue=0, tickinterval=4, borderwidth=2, command=scale_continue_scroll)
+scale_continue.grid(row=1,columnspan=2)
 scale_continue.set(3)
 picturebox = Label(root) 
-picturebox.pack()
-Frame1 = Frame(root)
-Frame1.pack()
-button_save = Button(Frame1,text = 'save image',width=30, height=5,command = button_save_click)
-button_save.pack(side='left', padx=50)
-button_continue = Button(Frame1,text = 'continue save',width=30, height=5,command = button_continue_click)
-button_continue.pack(side='right', padx=50)
+picturebox.grid(row=2,columnspan=2,padx=20)
+button_save = Button(root,text = 'save image',width=30, height=5,command = button_save_click)
+button_save.grid(row=3,column=0,padx=20,pady=5,sticky='w')
+button_continue = Button(root,text = 'continue save',width=30, height=5,command = button_continue_click)
+button_continue.grid(row=3,column=1,padx=20,pady=5,sticky='e')
 label_message = Label(root,text = '') 
-label_message.pack(side='right')
+label_message.grid(row=4,columnspan=2,sticky='e')
 
 read_camera()
+root.resizable(width=False,height=False)
 root.mainloop()
