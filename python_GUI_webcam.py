@@ -24,7 +24,6 @@ def continue_save(t1=-1,t2=-1):
         root.after(1, continue_save)
 def KeyPress(event=None):
     key = event.keysym
-    print(f"{event.keysym}:{event.char}:{event.keycode}")
     if key=='q' or key=='Escape': quit()
     elif key=='s' or key=='space': button_save_click()
     elif key=='c': button_continue_click()
