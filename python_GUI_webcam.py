@@ -37,11 +37,11 @@ def button_continue_click():
 def scale_interval_scroll(v):
     global interval_time
     interval_time = 1/int(v)
-    Scale1.config(label='save '+v+' image/sec')
+    scale_interval.config(label='save '+v+' image/sec')
 def scale_continue_scroll(v):
     global continue_time
     continue_time = int(v)
-    Scale2.config(label='continue save '+v+' sec')
+    scale_continue.config(label='continue save '+v+' sec')
 def quit():
     cap.release()
     root.destroy()
@@ -58,9 +58,9 @@ root.bind("<Key>",KeyPress)
 
 scale_interval = Scale(root, label='save 1 image/sec', from_=1, to=30, orient=HORIZONTAL,length=480, showvalue=0, tickinterval=2, resolution=1, command=scale_interval_scroll)
 scale_interval.pack()
+scale_interval.set(3)
 scale_continue = Scale(root, label='continue save 1 sec', from_=1, to=60, orient=HORIZONTAL,length=480, showvalue=0, tickinterval=4, resolution=1, command=scale_continue_scroll)
 scale_continue.pack()
-scale_interval.set(3)
 scale_continue.set(3)
 picturebox = Label(root) 
 picturebox.pack()
