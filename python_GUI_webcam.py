@@ -41,6 +41,10 @@ def scale_continue_scroll(v):
     global continue_time
     continue_time = int(v)
     scale_continue.config(label='continue save '+v+' sec')
+def set_center(w, h):
+    w0,h0 = root.winfo_screenwidth(),root.winfo_screenheight()
+    x,y = int((w0-w)/2),int((h0-h)/2)
+    root.geometry(f'{w}x{h}+{x}+{y}')
 def quit():
     cap.release()
     root.destroy()
@@ -52,7 +56,7 @@ start_time,last_time = time.time(),time.time()
 
 root = Tk()
 root.title("Capture tool")
-root.geometry("685x725+300+0")
+set_center(685,725)
 root.bind("<Key>",KeyPress)
 
 
