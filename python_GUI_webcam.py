@@ -60,10 +60,10 @@ set_center(685,725)
 root.bind("<Key>",KeyPress)
 
 
-scale_interval = Scale(root, label='save 1 image/sec', from_=1, to=30, orient=HORIZONTAL,length=480, showvalue=0, tickinterval=2, borderwidth=1, command=scale_interval_scroll)
+scale_interval = Scale(root, label='save 1 image/sec', from_=1, to=30, orient=HORIZONTAL,length=480, showvalue=0, tickinterval=2, command=scale_interval_scroll)
 scale_interval.grid(row=0,columnspan=2)
 scale_interval.set(3)
-scale_continue = Scale(root, label='continue save 1 sec', from_=1, to=60, orient=HORIZONTAL,length=480, showvalue=0, tickinterval=4, borderwidth=2, command=scale_continue_scroll)
+scale_continue = Scale(root, label='continue save 1 sec', from_=1, to=60, orient=HORIZONTAL,length=480, showvalue=0, tickinterval=4, command=scale_continue_scroll)
 scale_continue.grid(row=1,columnspan=2)
 scale_continue.set(3)
 picturebox = Label(root) 
