@@ -17,9 +17,9 @@ def continue_save(t1=-1,t2=-1):
     if t2==-1 : t2=continue_time
     if time.time()-last_time > t1:
         last_time=time.time()
-        while os.path.exists(str(z).zfill(4)+".jpg"): z+=1
-        cv2.imwrite(str(z).zfill(4)+".jpg",frame)
-        label_message.config(text='save '+str(z).zfill(4)+".jpg")
+        while os.path.exists(f'{z:04}.jpg'): z+=1
+        cv2.imwrite(f'{z:04}.jpg',frame)
+        label_message.config(text=f'save {z:04}.jpg')
     if time.time()-start_time < t2:
         root.after(1, continue_save)
 def KeyPress(event=None):
@@ -36,11 +36,11 @@ def button_continue_click():
 def scale_interval_scroll(v):
     global interval_time
     interval_time = 1/int(v)
-    scale_interval.config(label='save '+v+' image/sec')
+    scale_interval.config(label=f'save {v} image/sec')
 def scale_continue_scroll(v):
     global continue_time
     continue_time = int(v)
-    scale_continue.config(label='continue save '+v+' sec')
+    scale_continue.config(label=f'continue save {v} sec')
 def set_center(w, h):
     w0,h0 = root.winfo_screenwidth(),root.winfo_screenheight()
     x,y = int((w0-w)/2),int((h0-h)/2)
