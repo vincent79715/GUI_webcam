@@ -1,1 +1,1 @@
-# python_GUI_webcam
+# GUI_webcam
