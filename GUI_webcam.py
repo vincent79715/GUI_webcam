@@ -12,8 +12,8 @@ def read_camera():
         ret, frame = cap.read()
         if ret :
             temp = frame.copy()
-            if button_save['state'] == 'disabled':
-                T = int(continue_time - (time.time()-start_time))
+            T = int(continue_time - (time.time()-start_time))
+            if button_save['state'] == 'disabled' and T>=0:
                 L = (60,350) if T>=10 else (200,350)
                 cv2.putText(temp , f'{T}' , L, cv2.FONT_HERSHEY_COMPLEX, 12, (255,255,255), 2)
             img = ImageTk.PhotoImage(image=Image.fromarray(temp[:,:,::-1]))
@@ -27,7 +27,7 @@ def continue_save(t1,num):
     global last_time,z
     p = 0
     if t1!=0: set_state(False)
-    while bRuning and time.time()-start_time < 60:
+    while bRuning and p < num:
         cv2.waitKey(1)
         if time.time()-last_time > t1:
             last_time=time.time()
@@ -35,8 +35,6 @@ def continue_save(t1,num):
             cv2.imwrite(f'{z:04}.jpg',frame)
             label_message.config(text=f'{z:04}.jpg')
             p+=1
-        if p >= num:
-            break
     set_state(True)
 def KeyPress(event=None):
     key = event.keysym
@@ -50,7 +48,7 @@ def button_save_click():
 def button_continue_click():
     global start_time
     start_time = time.time()
-    if ret:  _thread.start_new_thread(continue_save,(1/image_sec,continue_time*image_sec))
+    if ret:  _thread.start_new_thread(continue_save,(1/image_sec-0.002,continue_time*image_sec))
 def scale_interval_scroll(v):
     global image_sec
     image_sec = int(v)
@@ -99,7 +97,7 @@ label_message.grid(row=4,columnspan=2,sticky='e')
 
 cap = cv2.VideoCapture(0)
 ret, frame = cap.read()
-z,interval_time,capture_num=1,1,1
+z,image_sec,continue_time=1,1,1
 start_time,last_time = time.time(),time.time()
 msg = np.zeros(640*480*3).reshape(480,640,3).astype(np.uint8)
 cv2.putText(msg , "Camera error" , (80,260), cv2.FONT_HERSHEY_COMPLEX, 2, (255,255,255), 2)
