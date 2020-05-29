@@ -2,6 +2,7 @@ import os
 import cv2
 import time
 import _thread
+import multiprocessing
 import numpy as np
 from tkinter import *
 from PIL import Image,ImageTk
@@ -27,20 +28,23 @@ def continue_save(t1,num):
     global last_time,z,run_p,run_all
     run_p,run_all = 0,num
     if t1!=0: set_state(False)
+    last_time = time.time()
     while bRuning and run_p < num:
         cv2.waitKey(1)
         if time.time()-last_time > t1:
-            last_time=time.time()
+            last_time +=t1
             while os.path.exists(f'{z:04}.jpg'): z+=1
             cv2.imwrite(f'{z:04}.jpg',frame)
             label_message.config(text=f'{z:04}.jpg')
+            print(run_p,f'{(time.time()-last_time)*1000:.2f}ms',f'{t1*1000:.2f}ms')
             run_p+=1
     set_state(True)
 def KeyPress(event=None):
     key = event.keysym
+    if button_save['state'] != 'disabled':
+        if key=='s' or key=='space': button_save_click()
+        elif key=='c': button_continue_click()
     if key=='q' or key=='Escape': quit()
-    elif key=='s' or key=='space': button_save_click()
-    elif key=='c': button_continue_click()
 def button_save_click():
     global start_time
     start_time = time.time()
