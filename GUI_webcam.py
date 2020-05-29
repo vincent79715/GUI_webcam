@@ -23,11 +23,9 @@ def read_camera():
         cv2.waitKey(1)
         picturebox.config(image=img)
         picturebox.image=img
-def continue_save(t1=-1,t2=-1):
+def continue_save(t1,t2):
     global last_time,z
-    set_state(False)
-    if t1==-1 : t1=interval_time
-    if t2==-1 : t2=continue_time
+    if t1!=0: set_state(False)
     while bRuning and time.time()-start_time < 60:
         cv2.waitKey(1)
         if time.time()-last_time > t1:
@@ -44,12 +42,11 @@ def KeyPress(event=None):
     elif key=='s' or key=='space': button_save_click()
     elif key=='c': button_continue_click()
 def button_save_click():
-    global start_time
     if ret: _thread.start_new_thread(continue_save,(0,0))
 def button_continue_click():
     global start_time
     start_time = time.time()
-    if ret:  _thread.start_new_thread(continue_save,())
+    if ret:  _thread.start_new_thread(continue_save,(interval_time,continue_time))
 def scale_interval_scroll(v):
     global interval_time
     interval_time = 1/int(v)
