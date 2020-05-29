@@ -1,13 +1,19 @@
 import os
 import cv2
 import time
+import numpy as np
 from tkinter import *
 from PIL import Image,ImageTk
 
 def read_camera():
-    global frame,last_time
+    global cap, ret, frame, last_time
     ret, frame = cap.read()
-    img = ImageTk.PhotoImage(image=Image.fromarray(frame[:,:,::-1]))
+    if ret :
+        img = ImageTk.PhotoImage(image=Image.fromarray(frame[:,:,::-1]))
+    else:
+        img = msg
+        cv2.waitKey(30)
+        cap = cv2.VideoCapture(0)
     picturebox.config(image=img)
     picturebox.image=img
     root.after(1, read_camera)
@@ -28,11 +34,11 @@ def KeyPress(event=None):
     elif key=='s' or key=='space': button_save_click()
     elif key=='c': button_continue_click()
 def button_save_click():
-    continue_save(0,0)
+    if not ret: continue_save(0,0)
 def button_continue_click():
     global start_time
     start_time = time.time()
-    continue_save()
+    if not ret: continue_save()
 def scale_interval_scroll(v):
     global interval_time
     interval_time = 1/int(v)
@@ -49,16 +55,10 @@ def quit():
     cap.release()
     root.destroy()
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-cap = cv2.VideoCapture(0)
-ret, frame = cap.read()
-z,continue_time,interval_time=1,1,1
-start_time,last_time = time.time(),time.time()
-
 root = Tk()
 root.title("Capture tool")
-set_window(685,725,0.35,0.45)
+set_window(685,735,0.35,0.45)
 root.bind("<Key>",KeyPress)
-
 
 scale_interval = Scale(root, label='save 1 image/sec', from_=1, to=30, orient=HORIZONTAL,length=480, showvalue=0, tickinterval=2, command=scale_interval_scroll)
 scale_interval.grid(row=0,columnspan=2)
@@ -75,6 +75,14 @@ button_continue.grid(row=3,column=1,padx=20,pady=5,sticky='e')
 label_message = Label(root,text = '') 
 label_message.grid(row=4,columnspan=2,sticky='e')
 
+cap = cv2.VideoCapture(0)
+ret, frame = cap.read()
+z,continue_time,interval_time=1,1,1
+start_time,last_time = time.time(),time.time()
+
+msg = np.zeros(640*480*3).reshape(480,640,3).astype(np.uint8)
+cv2.putText(msg , "Camera error" , (80,260), cv2.FONT_HERSHEY_COMPLEX, 2, (255,255,255), 2)
+msg = ImageTk.PhotoImage(image=Image.fromarray(msg))
+
 read_camera()
-root.resizable(width=False,height=False)
 root.mainloop()
