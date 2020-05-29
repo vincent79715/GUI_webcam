@@ -45,7 +45,6 @@ def KeyPress(event=None):
     elif key=='c': button_continue_click()
 def button_save_click():
     global start_time
-    start_time = time.time()
     if ret: _thread.start_new_thread(continue_save,(0,0))
 def button_continue_click():
     global start_time
