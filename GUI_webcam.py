@@ -13,9 +13,8 @@ def read_camera():
         if ret :
             temp = frame.copy()
             if button_save['state'] == 'disabled':
-                x, y = picturebox.winfo_rootx(), picturebox.winfo_rooty()
                 T = int(continue_time - (time.time()-start_time))
-                cv2.putText(temp , str(T) , (x+75,x+210), cv2.FONT_HERSHEY_COMPLEX, 12, (255,255,255), 2)
+                cv2.putText(temp , str(T) , (210,350), cv2.FONT_HERSHEY_COMPLEX, 12, (255,255,255), 2)
             img = ImageTk.PhotoImage(image=Image.fromarray(temp[:,:,::-1]))
         else:
             img = msg
