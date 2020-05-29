@@ -8,13 +8,19 @@ from PIL import Image,ImageTk
 
 def read_camera():
     global cap, ret, frame
-    while True:
+    while bRuning:
         ret, frame = cap.read()
         if ret :
-            img = ImageTk.PhotoImage(image=Image.fromarray(frame[:,:,::-1]))
+            temp = frame.copy()
+            if button_save['state'] == 'disabled':
+                x, y = picturebox.winfo_rootx(), picturebox.winfo_rooty()
+                T = int(continue_time - (time.time()-start_time))
+                cv2.putText(temp , str(T) , (x+75,x+210), cv2.FONT_HERSHEY_COMPLEX, 12, (255,255,255), 2)
+            img = ImageTk.PhotoImage(image=Image.fromarray(temp[:,:,::-1]))
         else:
             img = msg
             cap = cv2.VideoCapture(0)
+        cv2.waitKey(1)
         picturebox.config(image=img)
         picturebox.image=img
 def continue_save(t1=-1,t2=-1):
@@ -22,7 +28,7 @@ def continue_save(t1=-1,t2=-1):
     set_state(False)
     if t1==-1 : t1=interval_time
     if t2==-1 : t2=continue_time
-    while time.time()-start_time < 60:
+    while bRuning and time.time()-start_time < 60:
         cv2.waitKey(1)
         if time.time()-last_time > t1:
             last_time=time.time()
@@ -54,6 +60,9 @@ def scale_continue_scroll(v):
     continue_time = int(v)
     scale_continue.config(label=f'continue save {v} sec')
 def quit():
+    bRuning = False
+    cv2.waitKey(100)
+    cap.release()
     root.destroy()
 def set_state(bstate):
     if bstate:
@@ -91,11 +100,9 @@ cap = cv2.VideoCapture(0)
 ret, frame = cap.read()
 z,continue_time,interval_time=1,1,1
 start_time,last_time = time.time(),time.time()
-
 msg = np.zeros(640*480*3).reshape(480,640,3).astype(np.uint8)
 cv2.putText(msg , "Camera error" , (80,260), cv2.FONT_HERSHEY_COMPLEX, 2, (255,255,255), 2)
 msg = ImageTk.PhotoImage(image=Image.fromarray(msg))
-
+bRuning = True
 _thread.start_new_thread(read_camera,())
-
 root.mainloop()
