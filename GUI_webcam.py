@@ -8,22 +8,34 @@ from tkinter import *
 from PIL import Image,ImageTk
 
 def read_camera():
-    global cap, ret, frame
+    global cap,run_p,last_time
     while bRuning:
         ret, frame = cap.read()
+        # show error or image
         if ret :
             temp = frame.copy()
-            T = int(continue_time*(1-run_p/run_all))
-            if button_save['state'] == 'disabled' and T>=0:
+            if bGet and run_all>1:
+                T = int(continue_time*(1-run_p/run_all))
                 L = (60,350) if T>=10 else (200,350)
                 cv2.putText(temp , f'{T}' , L, cv2.FONT_HERSHEY_COMPLEX, 12, (255,255,255), 2)
             img = ImageTk.PhotoImage(image=Image.fromarray(temp[:,:,::-1]))
         else:
             img = msg
             cap = cv2.VideoCapture(0)
+        # save image
+        if ret and bGet and run_all>run_p and time.time()-last_time > interval_time:
+            while os.path.exists(f'{z:04}.jpg'): z+=1:
+            last_time += interval_time      
+            cv2.imwrite(f'{z:04}.jpg',frame)
+            label_message.config(text=f'{z:04}.jpg')
+            run_p+=1
+        if bGet and run_p>=run_all:
+            bGet = False
+            set_state(True)
         cv2.waitKey(1)
         picturebox.config(image=img)
         picturebox.image=img
+
 def continue_save(t1,num):
     global last_time,z,run_p,run_all
     run_p,run_all = 0,num
@@ -41,18 +53,22 @@ def continue_save(t1,num):
     set_state(True)
 def KeyPress(event=None):
     key = event.keysym
-    if button_save['state'] != 'disabled':
-        if key=='s' or key=='space': button_save_click()
-        elif key=='c': button_continue_click()
-    if key=='q' or key=='Escape': quit()
+    if key=='s' or key=='space': button_save_click()
+    elif key=='c': button_continue_click()
+    elif key=='q' or key=='Escape': quit()
 def button_save_click():
-    global start_time
-    start_time = time.time()
-    if ret: _thread.start_new_thread(continue_save,(0,1))
+    global start_time,last_time,run_p,run_all,interval_time,bGet
+    if not bGet:
+        start_time,last_time = time.time(),time.time()-0.001
+        interval_time,run_p,run_all = 0,0,1
+        bGet = True
 def button_continue_click():
-    global start_time
-    start_time = time.time()
-    if ret:  _thread.start_new_thread(continue_save,(1/image_sec,continue_time*image_sec))
+    global start_time,last_time,run_p,run_all,interval_time,bGet
+    if not bGet:
+        set_state(False)
+        start_time,last_time = time.time(),time.time()-0.001
+        interval_time,run_p,run_all = 1/image_sec,0,continue_time*image_sec
+        bGet = True
 def scale_interval_scroll(v):
     global image_sec
     image_sec = int(v)
@@ -100,7 +116,6 @@ label_message = Label(root,text = '')
 label_message.grid(row=4,columnspan=2,sticky='e')
 
 cap = cv2.VideoCapture(0)
-ret, frame = cap.read()
 z,image_sec,continue_time=1,1,1
 run_p,run_all=1,1
 start_time,last_time = time.time(),time.time()
