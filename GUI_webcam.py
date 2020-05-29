@@ -1,44 +1,50 @@
 import os
 import cv2
 import time
+import _thread
 import numpy as np
 from tkinter import *
 from PIL import Image,ImageTk
 
 def read_camera():
     global cap, ret, frame
-    ret, frame = cap.read()
-    if ret :
-        img = ImageTk.PhotoImage(image=Image.fromarray(frame[:,:,::-1]))
-    else:
-        img = msg
-        cv2.waitKey(30)
-        cap = cv2.VideoCapture(0)
-    picturebox.config(image=img)
-    picturebox.image=img
-    root.after(1, read_camera)
+    while True:
+        ret, frame = cap.read()
+        if ret :
+            img = ImageTk.PhotoImage(image=Image.fromarray(frame[:,:,::-1]))
+        else:
+            img = msg
+            cap = cv2.VideoCapture(0)
+        picturebox.config(image=img)
+        picturebox.image=img
 def continue_save(t1=-1,t2=-1):
     global last_time,z
+    set_state(False)
     if t1==-1 : t1=interval_time
     if t2==-1 : t2=continue_time
-    if time.time()-last_time > t1:
-        last_time=time.time()
-        while os.path.exists(f'{z:04}.jpg'): z+=1
-        cv2.imwrite(f'{z:04}.jpg',frame)
-        label_message.config(text=f'{z:04}.jpg')
-    if time.time()-start_time < t2:
-        root.after(1, continue_save)
+    while time.time()-start_time < 60:
+        cv2.waitKey(1)
+        if time.time()-last_time > t1:
+            last_time=time.time()
+            while os.path.exists(f'{z:04}.jpg'): z+=1
+            cv2.imwrite(f'{z:04}.jpg',frame)
+            label_message.config(text=f'{z:04}.jpg')
+        if time.time()-start_time > t2:
+            break
+    set_state(True)
 def KeyPress(event=None):
     key = event.keysym
     if key=='q' or key=='Escape': quit()
     elif key=='s' or key=='space': button_save_click()
     elif key=='c': button_continue_click()
 def button_save_click():
-    if ret: continue_save(0,0)
+    global start_time
+    start_time = time.time()
+    if ret: _thread.start_new_thread(continue_save,(0,0))
 def button_continue_click():
     global start_time
     start_time = time.time()
-    if ret: continue_save()
+    if ret:  _thread.start_new_thread(continue_save,())
 def scale_interval_scroll(v):
     global interval_time
     interval_time = 1/int(v)
@@ -47,17 +53,23 @@ def scale_continue_scroll(v):
     global continue_time
     continue_time = int(v)
     scale_continue.config(label=f'continue save {v} sec')
-def set_window(w, h,px=0.5,py=0.5):
-    w0,h0 = root.winfo_screenwidth(),root.winfo_screenheight()
-    x,y = int(w0*px-w/2),int(h0*py-h/2)
-    root.geometry(f'{w}x{h}+{x}+{y}')
 def quit():
-    cap.release()
     root.destroy()
+def set_state(bstate):
+    if bstate:
+        scale_interval['state'] = 'normal'
+        scale_continue['state'] = 'normal'
+        button_save['state'] = 'normal'
+        button_continue['state'] = 'normal'
+    else:
+        scale_interval['state'] = 'disable'
+        scale_continue['state'] = 'disable'
+        button_save['state'] = 'disable'
+        button_continue['state'] = 'disable'
+
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 root = Tk()
 root.title("Capture tool")
-set_window(685,735,0.35,0.45)
 root.bind("<Key>",KeyPress)
 
 scale_interval = Scale(root, label='save 1 image/sec', from_=1, to=30, orient=HORIZONTAL,length=480, showvalue=0, tickinterval=2, command=scale_interval_scroll)
@@ -84,5 +96,6 @@ msg = np.zeros(640*480*3).reshape(480,640,3).astype(np.uint8)
 cv2.putText(msg , "Camera error" , (80,260), cv2.FONT_HERSHEY_COMPLEX, 2, (255,255,255), 2)
 msg = ImageTk.PhotoImage(image=Image.fromarray(msg))
 
-read_camera()
+_thread.start_new_thread(read_camera,())
+
 root.mainloop()
