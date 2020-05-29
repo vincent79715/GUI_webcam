@@ -14,7 +14,8 @@ def read_camera():
             temp = frame.copy()
             if button_save['state'] == 'disabled':
                 T = int(continue_time - (time.time()-start_time))
-                cv2.putText(temp , str(T) , (210,350), cv2.FONT_HERSHEY_COMPLEX, 12, (255,255,255), 2)
+                L = (60,350) if T>=10 else (200,350)
+                cv2.putText(temp , f'{T}' , L, cv2.FONT_HERSHEY_COMPLEX, 12, (255,255,255), 2)
             img = ImageTk.PhotoImage(image=Image.fromarray(temp[:,:,::-1]))
         else:
             img = msg
@@ -62,6 +63,7 @@ def quit():
     bRuning = False
     cv2.waitKey(100)
     cap.release()
+    cv2.waitKey(100)
     root.destroy()
 def set_state(bstate):
     if bstate:
