@@ -6,7 +6,7 @@ from tkinter import *
 from PIL import Image,ImageTk
 
 def read_camera():
-    global cap, ret, frame, last_time
+    global cap, ret, frame
     ret, frame = cap.read()
     if ret :
         img = ImageTk.PhotoImage(image=Image.fromarray(frame[:,:,::-1]))
@@ -25,7 +25,7 @@ def continue_save(t1=-1,t2=-1):
         last_time=time.time()
         while os.path.exists(f'{z:04}.jpg'): z+=1
         cv2.imwrite(f'{z:04}.jpg',frame)
-        label_message.config(text=f'save {z:04}.jpg')
+        label_message.config(text=f'{z:04}.jpg')
     if time.time()-start_time < t2:
         root.after(1, continue_save)
 def KeyPress(event=None):
@@ -34,11 +34,11 @@ def KeyPress(event=None):
     elif key=='s' or key=='space': button_save_click()
     elif key=='c': button_continue_click()
 def button_save_click():
-    if not ret: continue_save(0,0)
+    if ret: continue_save(0,0)
 def button_continue_click():
     global start_time
     start_time = time.time()
-    if not ret: continue_save()
+    if ret: continue_save()
 def scale_interval_scroll(v):
     global interval_time
     interval_time = 1/int(v)
