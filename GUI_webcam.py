@@ -11,12 +11,11 @@ def read_camera():
     global cap,run_p,last_time,bGet,z
     showtext1,showtext2='',''
     while bRuning:
-        
         t0 = time.time()
         ret, frame = cap.read()
         # save image
         t1 = time.time()
-        if not bRuning: break
+        if not bRuning: return
         if ret and bGet and run_all>run_p and time.time()-last_time > interval_time:
             last_time += interval_time
             showtext1 = f'{z:04}.jpg'
@@ -25,34 +24,35 @@ def read_camera():
         if bGet and run_p>=run_all:
             bGet = False
             set_state(True)
-            showtext2 = ''          
+            showtext2 = ''
         # show error or image
         t2 = time.time()
-        if not bRuning: break
+        if not bRuning: return
         if ret:
             if bGet and run_all>1 and run_p>1:
                 T = int((1-run_p/run_all)*100)
                 showtext2 = f'{T}'
             threading.Thread(target=GUIrefresh, args=(ret,cv2.cvtColor(frame, cv2.COLOR_BGR2RGB),showtext1,showtext2),daemon=True).start() 
         else:
-            threading.Thread(target=GUIrefresh, args=(ret,msg,showtext1,showtext2),daemon=True).start() 
+            threading.Thread(target=GUIrefresh, args=(ret,msg,'',''),daemon=True).start() 
             cap = cv2.VideoCapture(0)
         t3 = time.time()
-        print(f'{threading.activeCount()} : {(t3-t0)*1000:5.1f} , {(t1-t0)*1000:5.1f} , {(t2-t1)*1000:5.1f} , {(t3-t2)*1000:5.1f}')
+        print(f'{threading.activeCount()} : {(t3-t0)*1000:6.2f} , {(t1-t0)*1000:6.2f} , {(t2-t1)*1000:6.2f} , {(t3-t2)*1000:6.2f}')
 def GUIrefresh(bSucess,img,text1,text2):
+    global lock
     # show error or image
-    if not bRuning: return
     if bSucess :
         img = Image.fromarray(img)
         img = ImageTk.PhotoImage(img)
+    lock.acquire()
     # GUI refresh 
-    if not bRuning: return
     label_message.config(text=text1)
     picturebox.config(image=img,text=text2)
     picturebox.image=img
-
+    lock.release()
 def Save_image(name,img):
     cv2.imwrite(name,img)
+    
 def KeyPress(event=None):
     key = event.keysym
     if key=='s' or key=='space': button_save_click()
@@ -118,8 +118,6 @@ if __name__ == '__main__':
     label_message = Label(root,text = '') 
     label_message.grid(row=4,columnspan=2,sticky='e')
 
-
-
     cap = cv2.VideoCapture(0) 
     z,image_sec,continue_time=1,1,1
     while os.path.exists(f'{z:04}.jpg'): z+=1
@@ -129,6 +127,6 @@ if __name__ == '__main__':
     msg = np.zeros(640*480*3).reshape(480,640,3).astype(np.uint8)
     cv2.putText(msg , "Camera error" , (80,260), cv2.FONT_HERSHEY_COMPLEX, 2, (255,255,255), 2)
     msg = ImageTk.PhotoImage(image=Image.fromarray(msg))
-
+    lock=threading.Lock()
     threading.Thread(target=read_camera,daemon=True).start()
     root.mainloop()
