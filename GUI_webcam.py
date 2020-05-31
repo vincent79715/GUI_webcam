@@ -18,6 +18,7 @@ def read_camera():
         if not bRuning: return
         if ret and bGet and run_all>run_p and time.time()-last_time > interval_time:
             last_time += interval_time
+            while os.path.exists(f'{z:04}.jpg'): z+=1
             showtext1 = f'{z:04}.jpg'
             threading.Thread(target=Save_image, args=(showtext1,frame*1)).start()          
             run_p,z = run_p+1,z+1
@@ -42,8 +43,7 @@ def GUIrefresh(bSucess,img,text1,text2):
     global lock
     # show error or image
     if bSucess :
-        img = Image.fromarray(img)
-        img = ImageTk.PhotoImage(img)
+        img = ImageTk.PhotoImage(Image.fromarray(img))
     lock.acquire()
     # GUI refresh 
     label_message.config(text=text1)
@@ -59,17 +59,17 @@ def KeyPress(event=None):
     elif key=='c': button_continue_click()
     elif key=='q' or key=='Escape': Exit()
 def button_save_click():
-    global start_time,last_time,run_p,run_all,interval_time,bGet
+    global last_time,run_p,run_all,interval_time,bGet
     if not bGet:
-        start_time,last_time = time.time(),time.time()-0.001
         interval_time,run_p,run_all = 0,0,1
+        last_time = time.time()-0.001
         bGet = True
 def button_continue_click():
-    global start_time,last_time,run_p,run_all,interval_time,bGet
+    global last_time,run_p,run_all,interval_time,bGet
     if not bGet:
         set_state(False)
-        start_time,last_time = time.time(),time.time()-0.001
         interval_time,run_p,run_all = 1/image_sec,0,continue_time*image_sec
+        last_time = time.time()-interval_time-0.001
         bGet = True
 def scale_interval_scroll(v):
     global image_sec
@@ -120,9 +120,9 @@ if __name__ == '__main__':
 
     cap = cv2.VideoCapture(0) 
     z,image_sec,continue_time=1,1,1
-    while os.path.exists(f'{z:04}.jpg'): z+=1
+    
     run_p,run_all=1,1
-    start_time,last_time = time.time(),time.time()
+    last_time = time.time()
     bRuning,bGet = True,False
     msg = np.zeros(640*480*3).reshape(480,640,3).astype(np.uint8)
     cv2.putText(msg , "Camera error" , (80,260), cv2.FONT_HERSHEY_COMPLEX, 2, (255,255,255), 2)
