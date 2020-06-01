@@ -8,7 +8,7 @@ from tkinter import *
 from PIL import Image,ImageTk
 
 def read_camera():
-    global cap,run_p,last_time,bGet,inum,zdir,q
+    global cap,run_p,last_time,bGet,inum,zdir
     showtext1,showtext2='',''
     vsource = 0
     while bRuning:
@@ -34,14 +34,13 @@ def read_camera():
         else:
             qGUI.put([ret,[],' ',' '])
             cap = cv2.VideoCapture(vsource)
-            cv2.waitKey(50)
+            time.sleep(0.01)
             vsource += 1
             if vsource>10:vsource=0
         if qGUI.qsize()>1: qGUI.get()
         t3 = time.time()
         print(f'{qGUI.qsize()},{qsave.qsize()},{threading.activeCount()} : {(t3-t0)*1000:6.2f} , {(t1-t0)*1000:6.2f} , {(t2-t1)*1000:6.2f} , {(t3-t2)*1000:6.2f}')
 def GUIrefresh():
-    global qGUI
     while bRuning:
         if qGUI.qsize()>0:
             ret,img,text1,text2 = qGUI.get()
@@ -55,14 +54,13 @@ def GUIrefresh():
             label_message.config(text=text1)
             picturebox.config(image=img,text=text2)
             picturebox.image=img
-        else: cv2.waitKey(5)
-def Save_image():
-    global qsave
-    while bRuning:
+        else: time.sleep(0.001)
+def Save_image(qsave):
+    while True:
         if qsave.qsize()>0:
             name,img = qsave.get()
             cv2.imwrite(name,img)
-        else: cv2.waitKey(5)
+        else: time.sleep(0.001)
 def KeyPress(event=None):
     key = event.keysym
     if key=='s' or key=='space': button_save_click()
@@ -107,10 +105,12 @@ def set_state(bstate):
 def Exit():
     global bRuning
     bRuning = False 
-    time.sleep(0.1)
+    mp_Save.terminate()
+    mp_Save.join()
+    print("End mp3")
     while qGUI.qsize()>0: qGUI.get()
     while qsave.qsize()>0: qsave.get()
-    time.sleep(0.1)
+    time.sleep(0.2)
     cap.release()
     root.destroy()
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
@@ -149,9 +149,9 @@ if __name__ == '__main__':
     qsave = mp.Queue()
     thread1 = threading.Thread(target=read_camera,daemon=True)
     thread2 = threading.Thread(target=GUIrefresh,daemon=True)
-    thread3 = threading.Thread(target=Save_image,daemon=True)
     thread1.start()
     thread2.start()
-    thread3.start()
-
+    mp_Save = mp.Process(target=Save_image, args=(qsave,))
+    mp_Save.start()
+    
     root.mainloop()
