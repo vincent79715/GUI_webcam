@@ -10,6 +10,7 @@ from PIL import Image,ImageTk
 def read_camera():
     global cap,run_p,last_time,bGet,inum,zdir,q
     showtext1,showtext2='',''
+    vsource = 0
     while bRuning:
         t0 = time.time()
         ret, frame = cap.read()
@@ -32,8 +33,10 @@ def read_camera():
             qGUI.put([ret,cv2.cvtColor(frame, cv2.COLOR_BGR2RGB),showtext1,showtext2])
         else:
             qGUI.put([ret,[],' ',' '])
-            cap = cv2.VideoCapture(0)
+            cap = cv2.VideoCapture(vsource)
             cv2.waitKey(50)
+            vsource += 1
+            if vsource>10:vsource=0
         if qGUI.qsize()>1: qGUI.get()
         t3 = time.time()
         print(f'{qGUI.qsize()},{qsave.qsize()},{threading.activeCount()} : {(t3-t0)*1000:6.2f} , {(t1-t0)*1000:6.2f} , {(t2-t1)*1000:6.2f} , {(t3-t2)*1000:6.2f}')
