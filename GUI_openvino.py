@@ -87,7 +87,6 @@ def GetFrame(qFrame):
 def Inference(qInference,qxml,qGUI):
     log.basicConfig(format="[ %(levelname)s ] %(message)s", level=log.INFO, stream=sys.stdout)
     name = "None"
-    Nn, Nc, Nh, Nw = 1,3,224,224
     while True:
         if qxml.qsize()>0:
             name = qxml.get()
@@ -103,7 +102,7 @@ def Inference(qInference,qxml,qGUI):
         if qInference.qsize()>0:
             ret,img,s1,s2 = qInference.get()
             if name != "None":
-                img2 = cv2.resize(frame, (Nw, Nh)
+                img2 = cv2.resize(img, (Nw, Nh)
                 if Nc==1: img2 = cv2.cvtColor(img2, cv2.COLOR_RGB2GRAY ).reshape(Nh, Nw, 1)
                 img2 = img.transpose((2, 0, 1)).reshape(Nn, Nc, Nh, Nw)
                 res = exec_net.infer(inputs={input_blob: img2})[out_blob][0]
