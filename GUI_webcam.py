@@ -8,10 +8,9 @@ from tkinter import *
 from PIL import Image,ImageTk
 
 def read_camera():
-    global cap,run_p,last_time,bGet,zdir,q
+    global cap,run_p,last_time,bGet,inum,zdir,q
     showtext1,showtext2='',''
     while bRuning:
-        inum=1
         t0 = time.time()
         ret, frame = cap.read()
         # save image
@@ -23,7 +22,7 @@ def read_camera():
             while os.path.exists(f'{sdir}{inum:04}.jpg'): inum+=1
             showtext1 = f'{sdir}{inum:04}.jpg'
             qsave.put([showtext1,frame*1])      
-            run_p = run_p+1
+            run_p,inum = run_p+1,inum+1
         if bGet and run_p>=run_all: set_state(True) #End
         # show error or image
         t2 = time.time()
@@ -33,7 +32,7 @@ def read_camera():
         else:
             qGUI.put([ret,[],' ',' '])
             cap = cv2.VideoCapture(0)
-            cv2.waitKey(100)
+            cv2.waitKey(50)
         if qGUI.qsize()>1: qGUI.get()
         t3 = time.time()
         print(f'{qGUI.qsize()},{qsave.qsize()},{threading.activeCount()} : {(t3-t0)*1000:6.2f} , {(t1-t0)*1000:6.2f} , {(t2-t1)*1000:6.2f} , {(t3-t2)*1000:6.2f}')
@@ -66,15 +65,15 @@ def KeyPress(event=None):
     elif key=='c': button_continue_click()
     elif key=='q' or key=='Escape': Exit()
 def button_save_click():
-    global last_time,run_p,run_all,interval_time,bGet
+    global last_time,run_p,run_all,interval_time,bGet,inum
     if not bGet:
-        interval_time,run_p,run_all = 0,0,1
+        interval_time,run_p,run_all,inum = 0,0,1,1
         last_time = time.time()-0.001
         set_state(False)
 def button_continue_click():
     global last_time,run_p,run_all,interval_time,zdir
     if not bGet:
-        interval_time,run_p,run_all,zdir = 1/image_sec,0,continue_time*image_sec,zdir+1
+        interval_time,run_p,run_all,inum,zdir = 1/image_sec,0,continue_time*image_sec,1,zdir+1
         last_time = time.time()-interval_time-0.001
         set_state(False)
         while os.path.isdir(f'{zdir:03}'): zdir+=1
@@ -140,7 +139,7 @@ if __name__ == '__main__':
     msg = ImageTk.PhotoImage(image=Image.fromarray(msg))
 
     cap = cv2.VideoCapture(0) 
-    zdir,image_sec,continue_time=0,1,1
+    inum,zdir,image_sec,continue_time=1,0,1,1
 
 
     qGUI = mp.Queue()
