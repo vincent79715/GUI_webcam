@@ -19,7 +19,7 @@ def read_camera():
             last_time += interval_time
             while os.path.exists(f'{z:04}.jpg'): z+=1
             showtext1 = f'{z:04}.jpg'
-            threading.Thread(target=Save_image, args=(showtext1,frame*1)).start()          
+            qsave.put([showtext1,frame*1])      
             run_p,z = run_p+1,z+1
         if bGet and run_p>=run_all: set_state(True) #End
         # show error or image
@@ -37,9 +37,7 @@ def GUIrefresh():
     global q
     while bRuning:
         if q.qsize()>0:
-            print("1",end=",")
             ret,img,text1,text2 = q.get()
-            print("2",end=",")
             # show error or image
             if ret : 
                 img = Image.fromarray(img)
@@ -50,10 +48,14 @@ def GUIrefresh():
             label_message.config(text=text1)
             picturebox.config(image=img,text=text2)
             picturebox.image=img
-        else: cv2.waitKey(1)
-def Save_image(name,img):
-    cv2.imwrite(name,img)
-    
+        else: cv2.waitKey(5)
+def Save_image():
+    global qsave
+    while bRuning:
+        if qsave.qsize()>0:
+            name,img = qsave.get()
+            cv2.imwrite(name,img)
+        else: cv2.waitKey(5)
 def KeyPress(event=None):
     key = event.keysym
     if key=='s' or key=='space': button_save_click()
@@ -97,11 +99,8 @@ def Exit():
     global bRuning
     bRuning = False 
     thread1.join()
-    print("thread1 Exit")
-    thread2.join()
-    print("thread2 Exit")
     while q.qsize()>0: q.get()
-    print("Queue Empty")
+    while qsave.qsize()>0: qsave.get()
     cap.release()
     root.destroy()
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
@@ -137,9 +136,12 @@ if __name__ == '__main__':
     msg = ImageTk.PhotoImage(image=Image.fromarray(msg))
 
     q = mp.Queue()
+    qsave = mp.Queue()
     thread1 = threading.Thread(target=read_camera,daemon=True)
     thread2 = threading.Thread(target=GUIrefresh,daemon=True)
+    thread3 = threading.Thread(target=Save_image,daemon=True)
     thread1.start()
     thread2.start()
+    thread3.start()
 
     root.mainloop()
