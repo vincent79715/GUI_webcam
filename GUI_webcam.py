@@ -26,6 +26,7 @@ def read_camera():
         if bGet and run_p>=run_all: set_state(True) #End
         # show error or image
         t2 = time.time()
+        if not bRuning: return
         if ret:
             showtext2 = f'{int((1-run_p/run_all)*continue_time)}' if (bGet and run_p<run_all) else ''
             qGUI.put([ret,cv2.cvtColor(frame, cv2.COLOR_BGR2RGB),showtext1,showtext2])
@@ -71,7 +72,7 @@ def button_save_click():
         last_time = time.time()-0.001
         set_state(False)
 def button_continue_click():
-    global last_time,run_p,run_all,interval_time,zdir
+    global last_time,run_p,run_all,interval_time,zdir,inum
     if not bGet:
         interval_time,run_p,run_all,inum,zdir = 1/image_sec,0,continue_time*image_sec,1,zdir+1
         last_time = time.time()-interval_time-0.001
@@ -103,10 +104,10 @@ def set_state(bstate):
 def Exit():
     global bRuning
     bRuning = False 
-    thread1.join()
+    time.sleep(0.1)
     while qGUI.qsize()>0: qGUI.get()
     while qsave.qsize()>0: qsave.get()
-    cv2.waitKey(100)
+    time.sleep(0.1)
     cap.release()
     root.destroy()
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
@@ -140,7 +141,6 @@ if __name__ == '__main__':
 
     cap = cv2.VideoCapture(0) 
     inum,zdir,image_sec,continue_time=1,0,1,1
-
 
     qGUI = mp.Queue()
     qsave = mp.Queue()
