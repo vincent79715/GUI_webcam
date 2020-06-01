@@ -8,48 +8,49 @@ from tkinter import *
 from PIL import Image,ImageTk
 
 def read_camera():
-    global cap,run_p,last_time,bGet,z
+    global cap,run_p,last_time,bGet,z,q
     showtext1,showtext2='',''
     while bRuning:
         t0 = time.time()
         ret, frame = cap.read()
         # save image
         t1 = time.time()
-        if not bRuning: return
         if ret and bGet and run_all>run_p and time.time()-last_time > interval_time:
             last_time += interval_time
             while os.path.exists(f'{z:04}.jpg'): z+=1
             showtext1 = f'{z:04}.jpg'
             threading.Thread(target=Save_image, args=(showtext1,frame*1)).start()          
             run_p,z = run_p+1,z+1
-        if bGet and run_p>=run_all:
-            bGet = False
-            set_state(True)
-            showtext2 = ''
+        if bGet and run_p>=run_all: set_state(True) #End
         # show error or image
         t2 = time.time()
-        if not bRuning: return
         if ret:
-            if bGet and run_all>1 and run_p>1:
-                T = int((1-run_p/run_all)*100)
-                showtext2 = f'{T}'
-            threading.Thread(target=GUIrefresh, args=(ret,cv2.cvtColor(frame, cv2.COLOR_BGR2RGB),showtext1,showtext2),daemon=True).start() 
+            showtext2 = f'{int((1-run_p/run_all)*100)}' if (bGet and run_p<run_all) else ''
+            q.put([ret,cv2.cvtColor(frame, cv2.COLOR_BGR2RGB),showtext1,showtext2])
         else:
-            threading.Thread(target=GUIrefresh, args=(ret,msg,'',''),daemon=True).start() 
+            q.put([ret,None,'',''])
             cap = cv2.VideoCapture(0)
+        if q.qsize()>1: q.get()
         t3 = time.time()
-        print(f'{threading.activeCount()} : {(t3-t0)*1000:6.2f} , {(t1-t0)*1000:6.2f} , {(t2-t1)*1000:6.2f} , {(t3-t2)*1000:6.2f}')
-def GUIrefresh(bSucess,img,text1,text2):
-    global lock
-    # show error or image
-    if bSucess :
-        img = ImageTk.PhotoImage(Image.fromarray(img))
-    lock.acquire()
-    # GUI refresh 
-    label_message.config(text=text1)
-    picturebox.config(image=img,text=text2)
-    picturebox.image=img
-    lock.release()
+        print(f'{q.qsize()},{threading.activeCount()} : {(t3-t0)*1000:6.2f} , {(t1-t0)*1000:6.2f} , {(t2-t1)*1000:6.2f} , {(t3-t2)*1000:6.2f}')
+def GUIrefresh():
+    global q
+    while bRuning:
+        if q.qsize()>0:
+            print("1",end=",")
+            ret,img,text1,text2 = q.get()
+            print("2",end=",")
+            # show error or image
+            if ret : 
+                img = Image.fromarray(img)
+                img = ImageTk.PhotoImage(img)
+            else: 
+                img = msg
+            # GUI refresh 
+            label_message.config(text=text1)
+            picturebox.config(image=img,text=text2)
+            picturebox.image=img
+        else: cv2.waitKey(1)
 def Save_image(name,img):
     cv2.imwrite(name,img)
     
@@ -63,14 +64,13 @@ def button_save_click():
     if not bGet:
         interval_time,run_p,run_all = 0,0,1
         last_time = time.time()-0.001
-        bGet = True
-def button_continue_click():
-    global last_time,run_p,run_all,interval_time,bGet
-    if not bGet:
         set_state(False)
+def button_continue_click():
+    global last_time,run_p,run_all,interval_time
+    if not bGet:
         interval_time,run_p,run_all = 1/image_sec,0,continue_time*image_sec
         last_time = time.time()-interval_time-0.001
-        bGet = True
+        set_state(False)
 def scale_interval_scroll(v):
     global image_sec
     image_sec = int(v)
@@ -80,21 +80,29 @@ def scale_continue_scroll(v):
     continue_time = int(v)
     scale_continue.config(label=f'continue save {v} sec')
 def set_state(bstate):
+    global bGet
     if bstate:
+        bGet=False
         scale_interval['state'] = 'normal'
         scale_continue['state'] = 'normal'
         button_save['state'] = 'normal'
         button_continue['state'] = 'normal'
     else:
+        bGet=True
         scale_interval['state'] = 'disable'
         scale_continue['state'] = 'disable'
         button_save['state'] = 'disable'
         button_continue['state'] = 'disable'
 def Exit():
-    print("Exit")
-    bRuning = False  
+    global bRuning
+    bRuning = False 
+    thread1.join()
+    print("thread1 Exit")
+    thread2.join()
+    print("thread2 Exit")
+    while q.qsize()>0: q.get()
+    print("Queue Empty")
     cap.release()
-    cv2.waitKey(200)
     root.destroy()
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 if __name__ == '__main__':
@@ -127,6 +135,11 @@ if __name__ == '__main__':
     msg = np.zeros(640*480*3).reshape(480,640,3).astype(np.uint8)
     cv2.putText(msg , "Camera error" , (80,260), cv2.FONT_HERSHEY_COMPLEX, 2, (255,255,255), 2)
     msg = ImageTk.PhotoImage(image=Image.fromarray(msg))
-    lock=threading.Lock()
-    threading.Thread(target=read_camera,daemon=True).start()
+
+    q = mp.Queue()
+    thread1 = threading.Thread(target=read_camera,daemon=True)
+    thread2 = threading.Thread(target=GUIrefresh,daemon=True)
+    thread1.start()
+    thread2.start()
+
     root.mainloop()
