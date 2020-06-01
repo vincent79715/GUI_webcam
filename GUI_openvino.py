@@ -102,14 +102,14 @@ def Inference(qInference,qxml,qGUI):
         if qInference.qsize()>0:
             ret,img,s1,s2 = qInference.get()
             if name != "None":
-                img = cv2.resize(frame, (Nw, Nh)
-                if Nc==1: img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY ).reshape(Nh, Nw, 1)
-                img = img.transpose((2, 0, 1)).reshape(Nn, Nc, Nh, Nw)
-                res = exec_net.infer(inputs={input_blob: img})[out_blob][0]
+                img2 = cv2.resize(frame, (Nw, Nh)
+                if Nc==1: img2 = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY ).reshape(Nh, Nw, 1)
+                img2 = img.transpose((2, 0, 1)).reshape(Nn, Nc, Nh, Nw)
+                res = exec_net.infer(inputs={input_blob: img2})[out_blob][0]
                 probs = np.squeeze(res)
                 No1 = np.argsort(probs)[::-1][0]
                 label = labels_map[No1] if labels_map else '#{}'.format(No1)
-                cv2.putText(frame, '{}:{:.2f}%'.format(label, probs[No1]*100), (10, 40), cv2.FONT_HERSHEY_SIMPLEX,1, (0, 0, 0), 1, cv2.LINE_AA)
+                cv2.putText(img, '{}:{:.2f}%'.format(label, probs[No1]*100), (10, 40), cv2.FONT_HERSHEY_SIMPLEX,1, (0, 0, 0), 1, cv2.LINE_AA)
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             img = Image.fromarray(img)
             qGUI.put([ret,img,s1,s2])
