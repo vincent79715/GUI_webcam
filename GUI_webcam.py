@@ -19,7 +19,7 @@ def read_camera():
         if ret and bGet and run_all>run_p and time.time()-last_time > interval_time:
             last_time += interval_time
             sdir = f'{zdir:03}/' if run_all>1 else ''
-            if not os.path.isdir(f'{zdir:03}'): os.mkdir(f'{zdir:03}')
+            if not os.path.isdir(f'{zdir:03}') and run_all>1: os.mkdir(f'{zdir:03}')
             while os.path.exists(f'{sdir}{inum:04}.jpg'): inum+=1
             showtext1 = f'{sdir}{inum:04}.jpg'
             qsave.put([showtext1,frame*1])      
