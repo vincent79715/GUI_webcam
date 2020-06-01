@@ -26,18 +26,19 @@ def read_camera():
         t2 = time.time()
         if ret:
             showtext2 = f'{int((1-run_p/run_all)*100)}' if (bGet and run_p<run_all) else ''
-            q.put([ret,cv2.cvtColor(frame, cv2.COLOR_BGR2RGB),showtext1,showtext2])
+            qGUI.put([ret,cv2.cvtColor(frame, cv2.COLOR_BGR2RGB),showtext1,showtext2])
         else:
-            q.put([ret,None,'',''])
+            qGUI.put([ret,[],' ',' '])
             cap = cv2.VideoCapture(0)
-        if q.qsize()>1: q.get()
+            cv2.waitKey(100)
+        if qGUI.qsize()>1: qGUI.get()
         t3 = time.time()
-        print(f'{q.qsize()},{threading.activeCount()} : {(t3-t0)*1000:6.2f} , {(t1-t0)*1000:6.2f} , {(t2-t1)*1000:6.2f} , {(t3-t2)*1000:6.2f}')
+        print(f'{qGUI.qsize()},{qsave.qsize()},{threading.activeCount()} : {(t3-t0)*1000:6.2f} , {(t1-t0)*1000:6.2f} , {(t2-t1)*1000:6.2f} , {(t3-t2)*1000:6.2f}')
 def GUIrefresh():
-    global q
+    global qGUI
     while bRuning:
-        if q.qsize()>0:
-            ret,img,text1,text2 = q.get()
+        if qGUI.qsize()>0:
+            ret,img,text1,text2 = qGUI.get()
             # show error or image
             if ret : 
                 img = Image.fromarray(img)
@@ -99,8 +100,9 @@ def Exit():
     global bRuning
     bRuning = False 
     thread1.join()
-    while q.qsize()>0: q.get()
+    while qGUI.qsize()>0: qGUI.get()
     while qsave.qsize()>0: qsave.get()
+    cv2.waitKey(100)
     cap.release()
     root.destroy()
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
@@ -135,7 +137,7 @@ if __name__ == '__main__':
     cv2.putText(msg , "Camera error" , (80,260), cv2.FONT_HERSHEY_COMPLEX, 2, (255,255,255), 2)
     msg = ImageTk.PhotoImage(image=Image.fromarray(msg))
 
-    q = mp.Queue()
+    qGUI = mp.Queue()
     qsave = mp.Queue()
     thread1 = threading.Thread(target=read_camera,daemon=True)
     thread2 = threading.Thread(target=GUIrefresh,daemon=True)
