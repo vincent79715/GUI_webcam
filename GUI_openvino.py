@@ -38,8 +38,7 @@ def read_camera():
             if ret:
                 showtext2 = f'{int((1-run_p/run_all)*continue_time)}' if (bGet and run_p<run_all) else ''
                 qInference.put([ret,frame*1,showtext1,showtext2])
-            else:
-                qGUI.put([ret,[],'',''])
+            else: qGUI.put([ret,[],'',''])
             if qGUI.qsize()>1: qGUI.get()
             t3 = time.time()
         else: 
@@ -55,11 +54,8 @@ def GUIrefresh():
         if qGUI.qsize()>0:
             ret,img,text1,text2 = qGUI.get()
             # show error or image
-            if ret : 
-                img = ImageTk.PhotoImage(img)
-                ipic += 1
-            else: 
-                img = msg
+            img = ImageTk.PhotoImage(img) if ret else msg
+            ipic += 1
             # GUI refresh 
             label_message.config(text=text1)
             picturebox.config(image=img,text=text2)
@@ -70,7 +66,7 @@ def GUIrefresh():
             iFPS = ipic/(t1-t0)
             t0 = time.time()
             ipic = 0
-            label_FPS.config(text=f'FPS:{iFPS:.2f}')
+            if ret: label_FPS.config(text=f'FPS:{iFPS:.2f}')
 def mpSaveImage(qSave):
     while True:
         if qSave.qsize()>0:
