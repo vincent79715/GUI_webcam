@@ -104,7 +104,7 @@ def Inference(qInference,qxml,qGUI):
             if name != "None":
                 img2 = cv2.resize(img, (Nw, Nh)
                 if Nc==1: img2 = cv2.cvtColor(img2, cv2.COLOR_RGB2GRAY ).reshape(Nh, Nw, 1)
-                img2 = img.transpose((2, 0, 1)).reshape(Nn, Nc, Nh, Nw)
+                img2 = img.transpose((2, 0, 1)).reshape(Nn, Nc, Nh, Nw))
                 res = exec_net.infer(inputs={input_blob: img2})[out_blob][0]
                 probs = np.squeeze(res)
                 No1 = np.argsort(probs)[::-1][0]
