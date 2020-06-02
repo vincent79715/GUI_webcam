@@ -29,7 +29,8 @@ def read_camera():
                 if not os.path.isdir(f'{zdir:03}') and run_all>1: os.mkdir(f'{zdir:03}')
                 while os.path.exists(f'{sdir}{znum:04}.jpg'): znum+=1
                 showtext1 = f'{sdir}{znum:04}.jpg'
-                qSave.put([showtext1,frame*1])      
+                if znum%2==0: qSave.put([showtext1,frame*1]) 
+                else: threading.Thread(target=threadSave, args = (showtext1,frame*1),daemon=True).start()
                 run_p,znum = run_p+1,znum+1
             if bGet and run_p>=run_all: set_state(True) #End
             # show error or image
@@ -70,12 +71,14 @@ def GUIrefresh():
             t0 = time.time()
             ipic = 0
             label_FPS.config(text=f'FPS:{iFPS:.2f}')
-def SaveImage(qSave):
+def mpSaveImage(qSave):
     while True:
         if qSave.qsize()>0:
             name,img = qSave.get()
             cv2.imwrite(name,img)
         else: time.sleep(0.001)
+def threadSave(name,img):
+    cv2.imwrite(name,img)
 def GetFrame(qFrame):
     cap = cv2.VideoCapture(0) 
     ret, frame = cap.read()
@@ -244,7 +247,7 @@ if __name__ == '__main__':
     root.bind("<Key>",KeyPress)
     root.protocol("WM_DELETE_WINDOW", Exit)
     
-    scale_interval = Scale(root, label='save 1 image/sec', from_=1, to=20, orient=HORIZONTAL,length=480, showvalue=0, tickinterval=2, command=scale_interval_scroll)
+    scale_interval = Scale(root, label='save 1 image/sec', from_=1, to=30, orient=HORIZONTAL,length=480, showvalue=0, tickinterval=2, command=scale_interval_scroll)
     scale_interval.grid(row=0,columnspan=2)
     scale_interval.set(10)
     scale_continue = Scale(root, label='continue save 1 sec', from_=1, to=60, orient=HORIZONTAL,length=480, showvalue=0, tickinterval=4, command=scale_continue_scroll)
@@ -290,7 +293,7 @@ if __name__ == '__main__':
     thGUI.start()
     
     qSave = mp.Queue()
-    mpSave = mp.Process(name='SaveImage',target=SaveImage, args=(qSave,))
+    mpSave = mp.Process(name='mpSaveImage',target=mpSaveImage, args=(qSave,))
     mpSave.start()
     
     qFrame = mp.Queue()
