@@ -113,7 +113,7 @@ def Inference(qInference,qxml,qGUI):
                     probs = np.squeeze(res)
                     No1 = np.argsort(probs)[::-1][0]
                     label = labels_map[No1] if labels_map else '#{}'.format(No1)
-                    cv2.putText(img, '{}:{:.2f}%'.format(label, probs[No1]*100), (10, 40), cv2.FONT_HERSHEY_SIMPLEX,1, (0, 0, 0), 1, cv2.LINE_AA)
+                    cv2.putText(img, '{}:{:.2f}%'.format(label, probs[No1]*100), (10, 40), cv2.FONT_HERSHEY_SIMPLEX,1, (0, 255, 0), 1, cv2.LINE_AA)
                 else:
                     res = res[0]
                     ih,iw = img.shape[:-1]
@@ -169,8 +169,15 @@ def set_state(bstate):
         button_save['state'] = 'disable'
         button_continue['state'] = 'disable'
 def menu_click():
-    qxml.put(menuVar.get())
-    print(menuVar.get())
+    scmd = menuVar.get()
+    last = Tmenu.index("end")
+    Tmenu.delete(1,last)  
+    _xml = glob.glob(r'*.xml')
+    for n in _xml:
+        n=n[:-4]
+        Tmenu.add_radiobutton(label=n,command=menu_click,variable=menuVar,value=n)
+    qxml.put(scmd)
+    print(scmd)
 def Exit():
     global bRuning
     bRuning = False 
@@ -267,13 +274,13 @@ if __name__ == '__main__':
 
     menuVar = StringVar()
     menuVar.set(1)
-    editmenu = Menu(menu0,tearoff=0)
-    editmenu.add_radiobutton(label="None",command=menu_click,variable=menuVar,value="None")
+    Tmenu = Menu(menu0,tearoff=0)
+    Tmenu.add_radiobutton(label="None",command=menu_click,variable=menuVar,value="None")
     _xml = glob.glob(r'*.xml')
     for n in _xml:
         n=n[:-4]
-        editmenu.add_radiobutton(label=n,command=menu_click,variable=menuVar,value=n)
-    menu0.add_cascade(label="Read xml",menu=editmenu)
+        Tmenu.add_radiobutton(label=n,command=menu_click,variable=menuVar,value=n)
+    menu0.add_cascade(label="Read xml",menu=Tmenu)
     
     run_p,run_all=1,1
     last_time = time.time()
