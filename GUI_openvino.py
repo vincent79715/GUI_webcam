@@ -41,8 +41,6 @@ def read_camera():
                 qGUI.put([ret,[],'',''])
             if qGUI.qsize()>1: qGUI.get()
             t3 = time.time()
-            if t3-t0>0.01:
-                print(f'{qFrame.qsize()},{qGUI.qsize()},{qSave.qsize()},{threading.activeCount()} : {(t3-t0)*1000:6.2f} , {(t1-t0)*1000:6.2f} , {(t2-t1)*1000:6.2f} , {(t3-t2)*1000:6.2f}')
         else: 
             time.sleep(0.001)
             Error_times +=1
@@ -50,19 +48,28 @@ def read_camera():
                 qGUI.put([False,[],'',''])
                 Error_times=1000
 def GUIrefresh():
+    iFPS,ipic = 0,0
+    t0,t1 = time.time(),time.time()
     while bRuning:
         if qGUI.qsize()>0:
             ret,img,text1,text2 = qGUI.get()
             # show error or image
             if ret : 
                 img = ImageTk.PhotoImage(img)
+                ipic += 1
             else: 
                 img = msg
             # GUI refresh 
             label_message.config(text=text1)
             picturebox.config(image=img,text=text2)
             picturebox.image=img
+            t1 = time.time()
         else: time.sleep(0.001)
+        if t1-t0>2:
+            iFPS = ipic/(t1-t0)
+            t0 = time.time()
+            ipic = 0
+            label_FPS.config(text=f'FPS:{iFPS:.2f}')
 def SaveImage(qSave):
     while True:
         if qSave.qsize()>0:
@@ -96,20 +103,28 @@ def Inference(qInference,qxml,qGUI):
                 model_labels = name + ".txt"
                 ie,net,input_blob,out_blob,exec_net,labels_map = getmodel(model_xml,model_bin,"CPU",None,model_labels,log)
                 Nn, Nc, Nh, Nw = net.inputs[input_blob].shape
-                print("Read xml")
-            else:
-                print("continue")
         if qInference.qsize()>0:
             ret,img,s1,s2 = qInference.get()
             if name != "None":
-                img2 = cv2.resize(img, (Nw, Nh)
+                img2 = cv2.resize(img, (Nw, Nh))
                 if Nc==1: img2 = cv2.cvtColor(img2, cv2.COLOR_RGB2GRAY ).reshape(Nh, Nw, 1)
-                img2 = img.transpose((2, 0, 1)).reshape(Nn, Nc, Nh, Nw))
+                img2 = img2.transpose((2, 0, 1)).reshape(Nn, Nc, Nh, Nw)
                 res = exec_net.infer(inputs={input_blob: img2})[out_blob][0]
-                probs = np.squeeze(res)
-                No1 = np.argsort(probs)[::-1][0]
-                label = labels_map[No1] if labels_map else '#{}'.format(No1)
-                cv2.putText(img, '{}:{:.2f}%'.format(label, probs[No1]*100), (10, 40), cv2.FONT_HERSHEY_SIMPLEX,1, (0, 0, 0), 1, cv2.LINE_AA)
+                if len(res.shape)==1:
+                    probs = np.squeeze(res)
+                    No1 = np.argsort(probs)[::-1][0]
+                    label = labels_map[No1] if labels_map else '#{}'.format(No1)
+                    cv2.putText(img, '{}:{:.2f}%'.format(label, probs[No1]*100), (10, 40), cv2.FONT_HERSHEY_SIMPLEX,1, (0, 0, 0), 1, cv2.LINE_AA)
+                else:
+                    res = res[0]
+                    ih,iw = img.shape[:-1]
+                    for obj in res:
+                        if obj[2] > 0.5:
+                            xmin,ymin,xmax,ymax = np.int32(obj[3:]*[iw,ih,iw,ih])
+                            index,prob = int(obj[1]-1),obj[2]*100
+                            label = labels_map[index] if labels_map else '#{}'.format(index)
+                            cv2.rectangle(img, (xmin,ymin), (xmax,ymax), (0,255,0), 2)
+                            cv2.putText(img, '{}:{:.2f}%'.format(label, prob), (xmin+5,ymin-10), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 1, cv2.LINE_AA)
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             img = Image.fromarray(img)
             qGUI.put([ret,img,s1,s2])
@@ -166,17 +181,7 @@ def Exit():
     mpSave.join()
     mpFrame.join()
     mpInference.join()
-    print("Exit mpSave、mpFrame、mpInference")
-    while qGUI.qsize()>0: qGUI.get()
-    print("Exit qGUI")
-    while qSave.qsize()>0: qSave.get()
-    print("Exit qSave")
-    while qFrame.qsize()>0: qFrame.get()
-    print("Exit qFrame")
-    while qxml.qsize()>0: qxml.get()
-    print("Exit qxml")
-    while qInference.qsize()>0: qInference.get()
-    print("Exit qInference")
+    print("Exit mpSave,mpFrame,mpInference")
     thread1.join()
     print("Exit thread1")
     time.sleep(0.2)
@@ -223,7 +228,7 @@ def getmodel(model_xml,model_bin,device,cpu_extension,labels,log):
 
     log.info("Loading model to the plugin")
     exec_net = ie.load_network(network=net, device_name=device)
-    if labels:
+    if labels and os.path.exists(labels):
         with open(labels, 'r') as f:
             labels_map = [x.split(sep=' ', maxsplit=1)[-1].strip() for x in f]
     else:
@@ -251,8 +256,13 @@ if __name__ == '__main__':
     button_save.grid(row=3,column=0,padx=20,pady=5,sticky='w')
     button_continue = Button(root,text = 'continue save',width=30, height=5,command = button_continue_click)
     button_continue.grid(row=3,column=1,padx=20,pady=5,sticky='e')
+    label_FPS = Label(root,text = '') 
+    label_FPS.grid(row=4,column=0,sticky='w')
     label_message = Label(root,text = '') 
-    label_message.grid(row=4,columnspan=2,sticky='e')
+    label_message.grid(row=4,column=1,sticky='e')
+
+
+
     menu0 = Menu(root)
     root.config(menu=menu0)
 
@@ -264,7 +274,7 @@ if __name__ == '__main__':
     for n in _xml:
         n=n[:-4]
         editmenu.add_radiobutton(label=n,command=menu_click,variable=menuVar,value=n)
-    menu0.add_cascade(label="編輯",menu=editmenu)
+    menu0.add_cascade(label="Read xml",menu=editmenu)
     
     run_p,run_all=1,1
     last_time = time.time()
