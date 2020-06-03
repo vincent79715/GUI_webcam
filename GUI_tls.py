@@ -63,7 +63,9 @@ def Inference(qInference,qxml,qUI):
                     No1 = np.argsort(probs)[::-1][0]
                     label = labels_map[No1] if labels_map else '#{}'.format(No1)
                     cv2.putText(img, '{}:{:.2f}%'.format(label, probs[No1]*100), (10, 40), cv2.FONT_HERSHEY_SIMPLEX,1, (0, 255, 0), 1, cv2.LINE_AA)
-                else:
+                elif len(res.shape)==2:
+                    print(res)
+                elif len(res.shape)==3:
                     res = res[0]
                     ih,iw = img.shape[:-1]
                     for obj in res:
@@ -203,8 +205,6 @@ def dirfind(Dir,Ans,target,layer):
         newDir=os.path.join(Dir,s)
         if layer<6 and os.path.isdir(newDir): dirfind(newDir,Ans,target,layer+1)
     return Ans
-def hello():
-    qSource.put("/home/vincent/1.mp4")
 def Exit():
     global bRuning,qUI,qSave,qFrame,qSource,qInference,qxml
     bRuning = False 
@@ -236,9 +236,8 @@ def getmodel(model_xml,model_bin,device,cpu_extension,labels,log):
             log.error("Please try to specify cpu extensions library path in sample's command line parameters using -l "
                       "or --cpu_extension command line argument")
             sys.exit(1)
-
-    assert len(net.inputs.keys()) == 1, "Sample supports only single input topologies"
-    assert len(net.outputs) == 1, "Sample supports only single output topologies"
+    if len(net.inputs.keys()) == 1: log.warning("Sample supports only single input topologies")
+    if len(net.outputs) == 1: log.warning("Sample supports only single output topologies")
 
     log.info("Preparing input blobs")
     input_blob = next(iter(net.inputs))
@@ -288,7 +287,6 @@ if __name__ == '__main__':
     local_xml,DLS_xml="",""
     DLS_home = dirfind("/home/",[],"NNFramework",0)[0]+"/tf/datasets/"
     Refreshmenu()
-    menu0.add_command(label="Hello!", command=hello)
 
     run_p,run_all,znum,zdir,image_sec,continue_timem,Error_times=1,1,1,1,1,1,1
     last_time = time.time()
