@@ -217,16 +217,6 @@ def Exit():
     del qUI,qSave,qFrame,qSource,qInference,qxml
     root.destroy()
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-def build_argparser():
-    parser = ArgumentParser(add_help=False)
-    args = parser.add_argument_group('Options')
-    args.add_argument('-h', '--help', action='help', default=SUPPRESS, help='Show this help message and exit.')
-    args.add_argument("-m", "--model", help="Required. Path to an .xml file with a trained model.",type=str)
-    args.add_argument("-i", "--input", help="Path to an image/video file.Default value is cam", default="cam", type=str)
-    args.add_argument("-l", "--cpu_extension",help="Optional. Required for CPU custom layers. ", type=str, default=None)
-    args.add_argument("-d", "--device",help="CPU, GPU, FPGA, HDDL, MYRIAD or HETERO .Default value is CPU",default="CPU", type=str)
-    args.add_argument("-lb", "--labels", help="Optional. Path to a labels mapping file", default=None, type=str)
-    return parser
 def getmodel(model_xml,model_bin,device,cpu_extension,labels,log):
     # Plugin initialization for specified device and load extensions library if specified
     log.info("Creating Inference Engine")
@@ -265,9 +255,6 @@ def getmodel(model_xml,model_bin,device,cpu_extension,labels,log):
     return ie,net,input_blob,out_blob,exec_net,labels_map
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 if __name__ == '__main__':
-    log.basicConfig(format="[ %(levelname)s ] %(message)s", level=log.INFO, stream=sys.stdout)
-    args = build_argparser().parse_args()
-    
     root = Tk()
     root.title("Capture tool")
     root.bind("<Key>",KeyPress)
