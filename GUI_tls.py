@@ -200,7 +200,7 @@ def Refreshmenu():
 def dirfind(Dir,Ans,target,layer):
     if len(Ans)>0:return
     for s in os.listdir(Dir):
-        if "." in s: continue
+        if s[0] == '.': continue
         if target in s: Ans.append(os.path.join(Dir,s))
         newDir=os.path.join(Dir,s)
         if layer<6 and os.path.isdir(newDir): dirfind(newDir,Ans,target,layer+1)
