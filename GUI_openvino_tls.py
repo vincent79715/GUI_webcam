@@ -123,14 +123,6 @@ def Inference(b,ampInference,qxml):
             time.sleep(0.001)
 def mpSave(name,img):
     cv2.imwrite(name,img)
-def test(bmpInference,ampInference,qxml):
-    while True:
-        if bmpInference==1:
-            img = ampInference.reshape(480,640,3)
-            cv2.imwrite("000.jpg",img)
-            bmpInference = 0
-        else: 
-            time.sleep(0.01)
 def GetFrame():
     global cap, ret, frame,bGet
     vsource,fps = 0,0
