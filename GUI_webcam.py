@@ -47,14 +47,6 @@ def GUIrefresh():
         else:time.sleep(0.001)
 def mpSave(name,img):
     cv2.imwrite(name,img)
-def test(bmpInference,ampInference,qxml):
-    while True:
-        if bmpInference==1:
-            img = ampInference.reshape(480,640,3)
-            cv2.imwrite("000.jpg",img)
-            bmpInference = 0
-        else: 
-            time.sleep(0.01)
 def GetFrame():
     global cap, ret, frame,bGet
     vsource,fps = 0,0
@@ -192,7 +184,7 @@ if __name__ == '__main__':
     # variable
     run_p,run_all,znum,zdir,image_sec,continue_timem,ipic=1,1,1,1,1,1,0
     last_time,t0 = time.time(),time.time()
-    bRuning,bSave,bGet,bInference = True,False,False,False
+    bRuning,bSave,bGet = True,False,False
     msg = np.zeros(640*480*3).reshape(480,640,3).astype(np.uint8)
     cv2.putText(msg , "Camera error" , (80,260), cv2.FONT_HERSHEY_COMPLEX, 2, (255,255,255), 2)
     msg = ImageTk.PhotoImage(image=Image.fromarray(msg))
