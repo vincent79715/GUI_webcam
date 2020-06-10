@@ -111,26 +111,19 @@ def Inference(mpIndex,mpStep,mpImage,mpTime,qxml):
                 index = np.argsort(probs)[::-1][0]
                 label = labels_map[index] if (labels_map is not None and len(labels_map)>index) else f'#{index}'
                 cv2.putText(img, f'{label}:{probs[index]:.2%}', (10, 40), cv2.FONT_HERSHEY_SIMPLEX,1, (0, 255, 0), 1, cv2.LINE_AA)
-            elif "yolo" in name:
-                objects = GetyoloAns(net,res,0.5,img.shape,img2.shape)
-                for obj in objects:
-                        xmin,ymin,xmax,ymax = obj['xmin'],obj['ymin'],obj['xmax'], obj['ymax']
-                        index,prob = obj['class_id'],obj['confidence']
-                        label = labels_map[index] if (labels_map is not None and len(labels_map)>index) else f'#{index}'
-                        cv2.rectangle(img, (xmin,ymin), (xmax,ymax), (0,255,0), 2)
-                        cv2.putText(img, f'{label}:{prob:.2%}', (xmin+5,ymin-10), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 1, cv2.LINE_AA)
-                del objects
             elif len(res[out_blob][0].shape)==2:
                 print(res)
             elif len(res[out_blob][0].shape)==3:
                 ih,iw = img.shape[:-1]
-                for obj in res[out_blob][0][0]:
+                objects = GetyoloAns(net,res,0.5, Nh, Nw) if "yolo" in name else res[out_blob][0][0]
+                for obj in objects:
                     if obj[2] > 0.5:
                         xmin,ymin,xmax,ymax = np.int32(obj[3:]*[iw,ih,iw,ih])
                         index,prob = int(obj[1]),obj[2]
                         label = labels_map[index] if (labels_map is not None and len(labels_map)>index) else f'#{index}'
                         cv2.rectangle(img, (xmin,ymin), (xmax,ymax), (0,255,0), 2)
                         cv2.putText(img,f'{label}:{prob:.2%}', (xmin+5,ymin-10), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 1, cv2.LINE_AA)
+                del objects
             del res,img2
             mpStep.value = 0
             mpTime.value = (time.time()-tt0)*1000
@@ -155,10 +148,11 @@ def yolov3(mpIndex,mpStep,mpImage,mpTime,qxml):
             img2 = img2.transpose((2, 0, 1)).reshape(Nn, Nc, Nh, Nw)
             res = exec_net.infer(inputs={input_blob: img2})
             if "yolo" in name:
-                objects = GetyoloAns(net,res,0.5,img.shape,img2.shape)
+                ih,iw = img.shape[:-1]
+                objects = GetyoloAns(net,res,0.5, Nh, Nw)
                 for obj in objects:
-                        xmin,ymin,xmax,ymax = obj['xmin'],obj['ymin'],obj['xmax'], obj['ymax']
-                        index,prob = obj['class_id'],obj['confidence']
+                        xmin,ymin,xmax,ymax = np.int32(obj[3:]*[iw,ih,iw,ih])
+                        index,prob = int(obj[1]),obj[2]
                         label = labels_map[index] if (labels_map is not None and len(labels_map)>index) else f'#{index}'
                         cv2.rectangle(img, (xmin,ymin), (xmax,ymax), (0,255,0), 2)
                         cv2.putText(img,f'{label}:{prob:.2%}', (xmin+5,ymin-10), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 1, cv2.LINE_AA)
@@ -220,16 +214,12 @@ def set_state(bstate):
     global bSave
     if bstate:
         bSave=False
-        scale_interval['state'] = 'normal'
-        scale_continue['state'] = 'normal'
-        button_save['state'] = 'normal'
-        button_continue['state'] = 'normal'
+        scale_interval['state'] = scale_continue['state'] = 'normal'
+        button_save['state'] = button_continue['state'] = 'normal'
     else:
         bSave=True
-        scale_interval['state'] = 'disable'
-        scale_continue['state'] = 'disable'
-        button_save['state'] = 'disable'
-        button_continue['state'] = 'disable'
+        scale_interval['state'] = scale_continue['state'] = 'disable'
+        button_save['state'] = button_continue['state'] = 'disable'
 def menu_click():
     global bInference
     scmd = menuVar.get()
@@ -238,7 +228,7 @@ def menu_click():
         bInference = scmd!="None"
         qxml.put(scmd)
 def dirfind(Dir,Ans,target,layer):
-    if len(Ans)>0:return
+    if len(Ans)>0: return
     for s in os.listdir(Dir):
         if s[0] == '.': continue
         if target in s: Ans.append(os.path.join(Dir,s))
@@ -273,8 +263,6 @@ def getmodel(name,device,cpu_extension):
             log.error("Please try to specify cpu extensions library path in sample's command line parameters using -l "
                       "or --cpu_extension command line argument")
             sys.exit(1)
-    if len(net.inputs.keys()) != 1: log.warning("Sample supports only single input topologies")
-    if len(net.outputs) != 1: log.warning("Sample supports only single output topologies")
     log.info("Preparing input blobs")
     input_blob = next(iter(net.inputs))
     out_blob = next(iter(net.outputs))
@@ -290,138 +278,95 @@ def getmodel(name,device,cpu_extension):
         labels_map = None
     return ie,net,input_blob,out_blob,exec_net,labels_map
 def readpbtxt(name):
-    if os.path.exists(name):
-        with open(name, 'r') as f:
-            lines = f.read().split("\nitem")
-            search = "display_name" if "display_name" in lines[0] else "name"
-            L = []
-            maxid = 0
-            for i in range(len(lines)):
-                n1,n2 = lines[i].find("id")+3,lines[i].find(search)+len(search)
-                n3,n4 = lines[i].find('\n',n1),lines[i].find('\n',n2)
-                m1,m2 = int(lines[i][n1:n3]),lines[i][n2:n4].split('\"')[1]
-                maxid = maxid if maxid>m1 else m1
-                L.append([m1,m2])
-        labels_map = np.array(range(maxid+1)).astype(np.str)
-        for m1,m2 in L:
-            labels_map[m1]=m2
-        return labels_map
-    return None
+    if not os.path.exists(name): return None
+    log.info("Read pbtxt")
+    with open(name, 'r') as f: txt = f.read()
+    search = "display_name:" if "display_name:" in txt else "name:"
+    pbid = [int(i.split()[0]) for i in txt[txt.find("id:")+3:].split("id:")]
+    pbname = [i.split('\"')[1] for i in txt[txt.find(search)+len(search):].split(search)]
+    labels_map = [pbname[pbid.index(i)] if i in pbid else i for i in range(max(pbid)+1)]
+    return labels_map
 def readDLS(name):
     sid,Out = name.split("/")[-4],""
     x=dls_db["Project"].find_one({'_id':ObjectId(sid)})['config']['selectedLabels']
     labels_map = [dls_db["DatasetLabel"].find_one({'_id':ObjectId(sid)})['name'] for sid in x]
     del sid,Out,x
+    return labels_map
 class YoloParams:
-    # ------------------------------------------- Extracting layer parameters ------------------------------------------
-    # Magic numbers are copied from yolo samples
-    def __init__(self, param, side):
+    def __init__(self, param):
         self.num = 3 if 'num' not in param else int(param['num'])
         self.coords = 4 if 'coords' not in param else int(param['coords'])
         self.classes = 80 if 'classes' not in param else int(param['classes'])
-        self.anchors = [10.0, 13.0, 16.0, 30.0, 33.0, 23.0, 30.0, 61.0, 62.0, 45.0, 59.0, 119.0, 116.0, 90.0, 156.0,
-                        198.0,
+        self.anchors = [10.0, 13.0, 16.0, 30.0, 33.0, 23.0, 30.0, 61.0, 62.0, 45.0, 59.0, 119.0, 116.0, 90.0, 156.0, 198.0,
                         373.0, 326.0] if 'anchors' not in param else [float(a) for a in param['anchors'].split(',')]
-        if 'mask' in param:
-            mask = [int(idx) for idx in param['mask'].split(',')]
-            self.num = len(mask)
-            maskedAnchors = []
-            for idx in mask:
-                maskedAnchors += [self.anchors[idx * 2], self.anchors[idx * 2 + 1]]
-            self.anchors = maskedAnchors
-        self.side = side
         self.isYoloV3 = 'mask' in param  # Weak way to determine but the only one.
-def entry_index(side, coord, classes, location, entry):
-    side_power_2 = side ** 2
-    n = location // side_power_2
-    loc = location % side_power_2
-    return int(side_power_2 * (n * (coord + classes + 1) + entry) + loc)
-def scale_bbox(x, y, h, w, class_id, confidence, h_scale, w_scale):
-    xmin = int((x - w / 2) * w_scale)
-    ymin = int((y - h / 2) * h_scale)
-    xmax = int(xmin + w * w_scale)
-    ymax = int(ymin + h * h_scale)
-    return dict(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax, class_id=class_id, confidence=confidence)
-def parse_yolo_region(blob, resized_image_shape, original_im_shape, params, threshold):
-    # ------------------------------------------ Validating output parameters ------------------------------------------
-    _, _, out_blob_h, out_blob_w = blob.shape
-    assert out_blob_w == out_blob_h, "Invalid size of output blob. It sould be in NCHW layout and height should " \
-                                     "be equal to width. Current height = {}, current width = {}" \
-                                     "".format(out_blob_h, out_blob_w)
-    # ------------------------------------------ Extracting layer parameters -------------------------------------------
-    orig_im_h, orig_im_w = original_im_shape
-    resized_image_h, resized_image_w = resized_image_shape
+        if self.isYoloV3:
+            mask = [int(idx)*2 for idx in param['mask'].split(',')]
+            self.num = len(mask)
+            self.anchors = np.array([[self.anchors[idx], self.anchors[idx+1]] for idx in mask]).flatten()
+def parse_yolo_region(blob, params, threshold, net_h, net_w):
+    grid_h, grid_w = blob.shape[1:]
     objects = list()
-    predictions = blob.flatten()
-    side_square = params.side * params.side
+    blob = blob.reshape((params.num,-1,grid_h, grid_w))
+    side_square = grid_h * grid_w
     # ------------------------------------------- Parsing YOLO Region output -------------------------------------------
     for i in range(side_square):
-        row = i // params.side
-        col = i % params.side
+        row = i // grid_w
+        col = i % grid_w
         for n in range(params.num):
-            obj_index = entry_index(params.side, params.coords, params.classes, n * side_square + i, params.coords)
-            scale = predictions[obj_index]
-            if scale < threshold:
-                continue
-            box_index = entry_index(params.side, params.coords, params.classes, n * side_square + i, 0)
+            scale = blob[n,4,row,col]
+            if scale < threshold: continue
             # Network produces location predictions in absolute coordinates of feature maps.
             # Scale it to relative coordinates.
-            x = (col + predictions[box_index + 0 * side_square]) / params.side
-            y = (row + predictions[box_index + 1 * side_square]) / params.side
+            x,y,w,h = blob[n,:4,row,col]
+            x,y = (col + x) / grid_w, (row + y) / grid_h
             # Value for exp is very big number in some cases so following construction is using here
-            try:
-                w_exp = exp(predictions[box_index + 2 * side_square])
-                h_exp = exp(predictions[box_index + 3 * side_square])
-            except OverflowError:
-                continue
+            try:w_exp,h_exp = exp(w),exp(h)
+            except OverflowError: continue
             # Depends on topology we need to normalize sizes by feature maps (up to YOLOv3) or by input shape (YOLOv3)
-            w = w_exp * params.anchors[2 * n] / (resized_image_w if params.isYoloV3 else params.side)
-            h = h_exp * params.anchors[2 * n + 1] / (resized_image_h if params.isYoloV3 else params.side)
+            w = w_exp * params.anchors[2 * n] / (net_w if params.isYoloV3 else grid_w)
+            h = h_exp * params.anchors[2 * n + 1] / (net_h if params.isYoloV3 else grid_h)
+            blob[n,5:,row,col] = blob[n,5:,row,col]*scale
+            prob = blob[n,5:,row,col]
             for j in range(params.classes):
-                class_index = entry_index(params.side, params.coords, params.classes, n * side_square + i,
-                                          params.coords + 1 + j)
-                confidence = scale * predictions[class_index]
-                if confidence < threshold:
-                    continue
-                objects.append(scale_bbox(x=x, y=y, h=h, w=w, class_id=j, confidence=confidence,
-                                          h_scale=orig_im_h, w_scale=orig_im_w))
+                if prob[j] > threshold:
+                    objects.append([0, j, prob[j], x-w/2, y-h/2, x+w/2, y+h/2])
     return objects
 def intersection_over_union(box_1, box_2):
-    width_of_overlap_area = min(box_1['xmax'], box_2['xmax']) - max(box_1['xmin'], box_2['xmin'])
-    height_of_overlap_area = min(box_1['ymax'], box_2['ymax']) - max(box_1['ymin'], box_2['ymin'])
-    if width_of_overlap_area < 0 or height_of_overlap_area < 0:
-        area_of_overlap = 0
-    else:
-        area_of_overlap = width_of_overlap_area * height_of_overlap_area
-    box_1_area = (box_1['ymax'] - box_1['ymin']) * (box_1['xmax'] - box_1['xmin'])
-    box_2_area = (box_2['ymax'] - box_2['ymin']) * (box_2['xmax'] - box_2['xmin'])
-    area_of_union = box_1_area + box_2_area - area_of_overlap
-    if area_of_union == 0:
-        return 0
-    return area_of_overlap / area_of_union
-def GetyoloAns(net,output,threshold,frameshape,in_frameshape):
+    xmin,ymin,xmax,ymax = box_1[3:]
+    xmin2,ymin2,xmax2,ymax2 = box_2[3:]
+    w_overlap = min(xmax, xmax2) - max(xmin, xmin2)
+    h_overlap = min(ymax, ymax2) - max(ymin, ymin2)
+    if (w_overlap < 0 or h_overlap < 0): return 0
+
+    area_overlap = w_overlap * h_overlap
+    box_1_area = (ymax - ymin) * (xmax - xmin)
+    box_2_area = (ymax2 - ymin2) * (xmax2 - xmin2)
+    area_union = box_1_area + box_2_area - area_overlap
+    return 0 if area_union <= 0 else area_overlap / area_union
+def GetyoloAns(net,output,threshold, net_h, net_w):
     objects = list()
+    t0 = time.time()
     for layer_name, out_blob in output.items():
-        layer_params = YoloParams(net.layers[layer_name].params, out_blob.shape[2])
-        objects += parse_yolo_region(out_blob, in_frameshape[2:], frameshape[:-1], layer_params, threshold)
+        layer_params = YoloParams(net.layers[layer_name].params)
+        objects += parse_yolo_region(out_blob[0], layer_params, threshold, net_h, net_w)
     # Filtering overlapping boxes with respect to the --threshold CLI parameter
-    objects = sorted(objects, key=lambda obj : obj['confidence'], reverse=True)
+    objects = sorted(objects, key=lambda obj : obj[2], reverse=True)
     for i in range(len(objects)):
-        if objects[i]['confidence'] == 0:
-            continue
+        if objects[i][2] == 0: continue
         for j in range(i + 1, len(objects)):
             if intersection_over_union(objects[i], objects[j]) > threshold:
-                objects[j]['confidence'] = 0
-
+                objects[j][2] = 0
     # Drawing objects with respect to the --threshold CLI parameter
-    objects = [obj for obj in objects if obj['confidence'] >= threshold]
-    return objects
+    objects = [obj for obj in objects if obj[2] >= threshold]
+    return np.array(objects)
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 if __name__ == '__main__':
+    log.basicConfig(format="[ %(levelname)s ] %(message)s", level=log.INFO, stream=sys.stdout)
     DLS_home = dirfind("/home/",[],"NNFramework",0)[0]+"/tf/datasets/"
     DLS_end = "/model/frozen_FP32/frozen_inference_graph"
     DLS_label = "/label/label.pbtxt"
-    dls_db = pymongo.MongoClient('mongodb://localhost:27017/')["dls"]
+    dls_db = pymongo.MongoClient('mongodb://localhost:27017/',connect=False)["dls"]
     # Start Process
     qSource,qxml = mp.Queue(10),mp.Queue(10)
     mpImage = mp.Array('b', 640*480*3, lock=False) # 'b' 1 byte
