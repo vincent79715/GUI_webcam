@@ -10,7 +10,6 @@ import multiprocessing as mp
 from math import exp as exp
 from tkinter import *
 from PIL import Image,ImageTk
-from argparse import ArgumentParser, SUPPRESS
 from openvino.inference_engine import IENetwork, IECore
 from bson.objectid import ObjectId
 
@@ -48,16 +47,17 @@ def GUIrefresh():
             ipic += 1
             picturebox["image"]=img
             picturebox.image=img
+            label_Time["text"] = f'     {mpTime.value:.2f}' if bInference else ""
             if imgname!="None": label_message["text"]=imgname
             if picturebox["text"]!=waittime: picturebox["text"]=waittime
             if time.time()-t0>2:
                 iFPS,ipic = ipic/(time.time()-t0),0
                 t0 = time.time()
-                if ret: label_FPS["text"]=f'FPS:{iFPS:.2f}'
+                if ret: label_FPS["text"]=f'     FPS:{iFPS:.2f}'
         else:time.sleep(0.001)
 def Refreshmenu():
     global local_xml,DLS_xml
-    _xml1,_xml2,_xml3 = glob.glob(r'*.xml'),glob.glob(r'.tls/*.xml'),[]
+    _xml1,_xml2,_xml3 = sorted(glob.glob(r'*.xml')),sorted(glob.glob(r'.tls/*.xml')),[]
     for i in dls_db["Project"].find() :
         L = DLS_home+str(i['_id'])+DLS_end
         if os.path.exists(f'{L}.xml'):
@@ -82,9 +82,8 @@ def Refreshmenu():
         else:
             root.config(menu=menu0)
     root.after(500,Refreshmenu) 
-def Inference(mpIndex,mpStep,mpImage,qxml):
+def Inference(mpIndex,mpStep,mpImage,mpTime,qxml):
     img = np.frombuffer(mpImage,dtype=np.uint8).reshape(480,640,3)
-    dls_db = pymongo.MongoClient('mongodb://localhost:27017/')["dls"]
     ie = None
     name = ""
     while mpStep.value != -1:
@@ -96,13 +95,11 @@ def Inference(mpIndex,mpStep,mpImage,qxml):
             name = qxml.get()
             if name != "None" and lastname != name:
                 if ie is not None: del ie,net,input_blob,out_blob,exec_net,labels_map,Nn,Nc,Nh,Nw
-                ie,net,input_blob,out_blob,exec_net,labels_map = getmodel(f'{name}.xml',f'{name}.bin',"CPU",None,f'{name}.txt',log)
+                ie,net,input_blob,out_blob,exec_net,labels_map = getmodel(f'{name}',"CPU",None)
                 Nn, Nc, Nh, Nw = net.inputs[input_blob].shape
                 if labels_map is None and DLS_end in name:
-                    sid,Out = name.split("/")[-4],""
-                    x=dls_db["Project"].find_one({'_id':ObjectId(sid)})['config']['selectedLabels']
-                    labels_map = [dls_db["DatasetLabel"].find_one({'_id':ObjectId(sid)})['name'] for sid in x]
-                    del sid,Out,x
+                    pbtxt = name.replace(DLS_end, DLS_label)
+                    labels_map = readpbtxt(pbtxt) if os.path.exists(pbtxt) else readDLS(name)
         if mpStep.value == 1:
             tt0 = time.time()
             img2 = cv2.resize(img, (Nw, Nh))
@@ -111,15 +108,15 @@ def Inference(mpIndex,mpStep,mpImage,qxml):
             res = exec_net.infer(inputs={input_blob: img2})
             if len(res[out_blob][0].shape)==1:
                 probs = np.squeeze(res[out_blob][0])
-                No1 = np.argsort(probs)[::-1][0]
-                label = labels_map[No1] if labels_map else f'#{No1}'
-                cv2.putText(img, f'{label}:{probs[No1]:.2%}', (10, 40), cv2.FONT_HERSHEY_SIMPLEX,1, (0, 255, 0), 1, cv2.LINE_AA)
+                index = np.argsort(probs)[::-1][0]
+                label = labels_map[index] if (labels_map is not None and len(labels_map)>index) else f'#{index}'
+                cv2.putText(img, f'{label}:{probs[index]:.2%}', (10, 40), cv2.FONT_HERSHEY_SIMPLEX,1, (0, 255, 0), 1, cv2.LINE_AA)
             elif "yolo" in name:
                 objects = GetyoloAns(net,res,0.5,img.shape,img2.shape)
                 for obj in objects:
                         xmin,ymin,xmax,ymax = obj['xmin'],obj['ymin'],obj['xmax'], obj['ymax']
                         index,prob = obj['class_id'],obj['confidence']
-                        label = labels_map[index] if labels_map and len(labels_map) > index else f'#{index}'
+                        label = labels_map[index] if (labels_map is not None and len(labels_map)>index) else f'#{index}'
                         cv2.rectangle(img, (xmin,ymin), (xmax,ymax), (0,255,0), 2)
                         cv2.putText(img, f'{label}:{prob:.2%}', (xmin+5,ymin-10), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 1, cv2.LINE_AA)
                 del objects
@@ -131,16 +128,15 @@ def Inference(mpIndex,mpStep,mpImage,qxml):
                     if obj[2] > 0.5:
                         xmin,ymin,xmax,ymax = np.int32(obj[3:]*[iw,ih,iw,ih])
                         index,prob = int(obj[1]),obj[2]
-                        label = labels_map[index] if labels_map and len(labels_map) > index else f'#{index}'
+                        label = labels_map[index] if (labels_map is not None and len(labels_map)>index) else f'#{index}'
                         cv2.rectangle(img, (xmin,ymin), (xmax,ymax), (0,255,0), 2)
                         cv2.putText(img,f'{label}:{prob:.2%}', (xmin+5,ymin-10), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 1, cv2.LINE_AA)
             del res,img2
             mpStep.value = 0
-            print("Inference",(time.time()-tt0)*1000)
+            mpTime.value = (time.time()-tt0)*1000
         else: time.sleep(0.001)
-def yolov3(mpIndex,mpStep,mpImage,qxml):
+def yolov3(mpIndex,mpStep,mpImage,mpTime,qxml):
     img = np.frombuffer(mpImage,dtype=np.uint8).reshape(480,640,3)
-    dls_db = pymongo.MongoClient('mongodb://localhost:27017/')["dls"]
     name = ""
     while mpStep.value != -1:
         if mpIndex.value==0: 
@@ -150,7 +146,7 @@ def yolov3(mpIndex,mpStep,mpImage,qxml):
             lastname = name
             name = qxml.get()
             if name != "None" and lastname != name:
-                ie,net,input_blob,out_blob,exec_net,labels_map = getmodel(f'{name}.xml',f'{name}.bin',"CPU",None,f'{name}.txt',log)
+                ie,net,input_blob,out_blob,exec_net,labels_map = getmodel(f'{name}',"CPU",None)
                 Nn, Nc, Nh, Nw = net.inputs[input_blob].shape
         if mpStep.value == 1:
             tt0 = time.time()
@@ -163,13 +159,13 @@ def yolov3(mpIndex,mpStep,mpImage,qxml):
                 for obj in objects:
                         xmin,ymin,xmax,ymax = obj['xmin'],obj['ymin'],obj['xmax'], obj['ymax']
                         index,prob = obj['class_id'],obj['confidence']
-                        label = labels_map[index] if labels_map else f'#{index}'
+                        label = labels_map[index] if (labels_map is not None and len(labels_map)>index) else f'#{index}'
                         cv2.rectangle(img, (xmin,ymin), (xmax,ymax), (0,255,0), 2)
                         cv2.putText(img,f'{label}:{prob:.2%}', (xmin+5,ymin-10), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 1, cv2.LINE_AA)
                 del objects
             del res,img2
             mpStep.value = 0
-            print("Inference",(time.time()-tt0)*1000)
+            mpTime.value = (time.time()-tt0)*1000
         else: time.sleep(0.001)
 def mpSave(name,img):
     cv2.imwrite(name,img)
@@ -259,15 +255,15 @@ def Exit():
     time.sleep(0.1)
     root.destroy()
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-def getmodel(model_xml,model_bin,device,cpu_extension,labels,log):
+def getmodel(name,device,cpu_extension):
     # Plugin initialization for specified device and load extensions library if specified
     log.info("Creating Inference Engine")
     ie = IECore()
     if cpu_extension and 'CPU' in device:
         ie.add_extension(cpu_extension, "CPU")
     # Read IR
-    log.info(f'Loading network files:\n\t{model_xml}\n\t{model_bin}')
-    net = IENetwork(model=model_xml, weights=model_bin)
+    log.info(f'Loading network files:\n\t{name}.xml\n\t{name}.bin')
+    net = IENetwork(model=f'{name}.xml', weights=f'{name}.bin')
     if "CPU" in device:
         supported_layers = ie.query_network(net, "CPU")
         not_supported_layers = [l for l in net.layers.keys() if l not in supported_layers]
@@ -285,12 +281,37 @@ def getmodel(model_xml,model_bin,device,cpu_extension,labels,log):
     net.batch_size = 1
     log.info("Loading model to the plugin")
     exec_net = ie.load_network(network=net, device_name=device)
-    if labels and os.path.exists(labels):
-        with open(labels, 'r') as f:
-            labels_map = [x.split(sep=' ', maxsplit=1)[-1].strip() for x in f]
+    if os.path.exists(f'{name}.txt'):
+        with open(f'{name}.txt', 'r') as f:
+            labels_map = [x.strip() for x in f]
+    elif os.path.exists(f'{name}.pbtxt'):
+        labels_map = readpbtxt(f'{name}.pbtxt')
     else:
         labels_map = None
     return ie,net,input_blob,out_blob,exec_net,labels_map
+def readpbtxt(name):
+    if os.path.exists(name):
+        with open(name, 'r') as f:
+            lines = f.read().split("\nitem")
+            search = "display_name" if "display_name" in lines[0] else "name"
+            L = []
+            maxid = 0
+            for i in range(len(lines)):
+                n1,n2 = lines[i].find("id")+3,lines[i].find(search)+len(search)
+                n3,n4 = lines[i].find('\n',n1),lines[i].find('\n',n2)
+                m1,m2 = int(lines[i][n1:n3]),lines[i][n2:n4].split('\"')[1]
+                maxid = maxid if maxid>m1 else m1
+                L.append([m1,m2])
+        labels_map = np.array(range(maxid+1)).astype(np.str)
+        for m1,m2 in L:
+            labels_map[m1]=m2
+        return labels_map
+    return None
+def readDLS(name):
+    sid,Out = name.split("/")[-4],""
+    x=dls_db["Project"].find_one({'_id':ObjectId(sid)})['config']['selectedLabels']
+    labels_map = [dls_db["DatasetLabel"].find_one({'_id':ObjectId(sid)})['name'] for sid in x]
+    del sid,Out,x
 class YoloParams:
     # ------------------------------------------- Extracting layer parameters ------------------------------------------
     # Magic numbers are copied from yolo samples
@@ -399,15 +420,16 @@ def GetyoloAns(net,output,threshold,frameshape,in_frameshape):
 if __name__ == '__main__':
     DLS_home = dirfind("/home/",[],"NNFramework",0)[0]+"/tf/datasets/"
     DLS_end = "/model/frozen_FP32/frozen_inference_graph"
+    DLS_label = "/label/label.pbtxt"
     dls_db = pymongo.MongoClient('mongodb://localhost:27017/')["dls"]
     # Start Process
     qSource,qxml = mp.Queue(10),mp.Queue(10)
     mpImage = mp.Array('b', 640*480*3, lock=False) # 'b' 1 byte
-    mpStep,mpIndex = mp.Value('i', 0),mp.Value('i', 0)
+    mpStep,mpIndex,mpTime = mp.Value('i', 0),mp.Value('i', 0),mp.Value('f', 0.0)
     npImage = np.frombuffer(mpImage,dtype=np.uint8)
-    mpInference = mp.Process(name='Inference',target=Inference, args=(mpIndex,mpStep,mpImage,qxml))
+    mpInference = mp.Process(name='Inference',target=Inference, args=(mpIndex,mpStep,mpImage,mpTime,qxml),daemon=True)
     mpInference.start()
-    mpyolo = mp.Process(name='yolov3',target=yolov3, args=(mpIndex,mpStep,mpImage,qxml))
+    mpyolo = mp.Process(name='yolov3',target=yolov3, args=(mpIndex,mpStep,mpImage,mpTime,qxml),daemon=True)
     mpyolo.start()
     # Start Tkinter
     root = Tk()
@@ -429,6 +451,8 @@ if __name__ == '__main__':
     button_continue.grid(row=3,column=1,padx=20,pady=5,sticky='e')
     label_FPS = Label(root,text = '') 
     label_FPS.grid(row=4,column=0,sticky='w')
+    label_Time = Label(root,text = '') 
+    label_Time.grid(row=1,columnspan=2,sticky=W+S)
     label_message = Label(root,text = '') 
     label_message.grid(row=4,column=1,sticky='e')
     # add Menu
