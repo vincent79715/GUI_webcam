@@ -1,3 +1,4 @@
+ 
 import os
 import cv2
 import time
@@ -8,7 +9,7 @@ import numpy as np
 import logging as log
 import multiprocessing as mp
 from math import exp as exp
-from tkinter import *
+import tkinter as tk
 from PIL import Image,ImageTk
 from openvino.inference_engine import IENetwork, IECore
 from bson.objectid import ObjectId
@@ -25,7 +26,7 @@ def GUIrefresh():
                 if not os.path.isdir(f'{zdir:03}') and run_all>1: os.mkdir(f'{zdir:03}')
                 while os.path.exists(f'{sdir}{znum:04}.jpg'): znum+=1
                 imgname = f'{sdir}{znum:04}.jpg'
-                mp.Process(name='mpSaveImage',target=mpSave, args=(imgname,frame)).start()
+                mp.Process(name='mpSaveImage',target=mpSave, args=(imgname,frame),daemon=True).start()
                 run_p,znum = run_p+1,znum+1
             if bSave and run_p>=run_all: set_state(True) #End
             # show error or image
@@ -34,13 +35,11 @@ def GUIrefresh():
                 if bInference:
                     np.copyto(npImage, frame.reshape(640*480*3)) 
                     mpStep.value = 1
-                    while mpStep.value == 1: time.sleep(0.001)
+                    while mpStep.value > 0: time.sleep(0.001)
                     img = npImage.reshape(480,640,3)
                 else:
                     img = frame
-                img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-                img = Image.fromarray(img)
-                img = ImageTk.PhotoImage(img)
+                img = ImageTk.PhotoImage(Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB)))
             else:
                 img = msg
             # GUI refresh 
@@ -51,8 +50,7 @@ def GUIrefresh():
             if imgname!="None": label_message["text"]=imgname
             if picturebox["text"]!=waittime: picturebox["text"]=waittime
             if time.time()-t0>2:
-                iFPS,ipic = ipic/(time.time()-t0),0
-                t0 = time.time()
+                iFPS,ipic,t0 = ipic/(time.time()-t0),0,time.time()
                 if ret: label_FPS["text"]=f'     FPS:{iFPS:.2f}'
         else:time.sleep(0.001)
 def Refreshmenu():
@@ -68,31 +66,27 @@ def Refreshmenu():
         if last>0:Tmenu.delete(1,last)
         if len(local_xml)>0:Tmenu.add_separator()
         for n in _xml1:
-            n=n[:-4]
-            Tmenu.add_radiobutton(label=n,command=menu_click,variable=menuVar,value=n)
+            Tmenu.add_radiobutton(label=n[:-4],command=menu_click,variable=menuVar,value=n[:-4])
         for n in _xml2:
-            n=n[:-4]
-            Tmenu.add_radiobutton(label=n[5:],command=menu_click,variable=menuVar,value=n)
+            Tmenu.add_radiobutton(label=n[5:-4],command=menu_click,variable=menuVar,value=n[:-4])
         if len(DLS_xml)>0:Tmenu.add_separator()
         for n1,n2 in DLS_xml:
             Tmenu.add_radiobutton(label=n1,command=menu_click,variable=menuVar,value=n2)
         if len(local_xml)==0 and len(DLS_xml)==0:
-            empty = Menu(root)
+            empty = tk.Menu(root)
             root.config(menu=empty)
-        else:
+        elif root["menu"]!=menu0:
             root.config(menu=menu0)
     root.after(500,Refreshmenu) 
 def Inference(mpIndex,mpStep,mpImage,mpTime,qxml):
     img = np.frombuffer(mpImage,dtype=np.uint8).reshape(480,640,3)
-    ie = None
-    name = ""
+    ie,name = None,""
     while mpStep.value != -1:
         if mpIndex.value==1: 
             time.sleep(0.001)
             continue
         if qxml.qsize()>0:
-            lastname = name
-            name = qxml.get()
+            lastname,name = name,qxml.get()
             if name != "None" and lastname != name:
                 if ie is not None: del ie,net,input_blob,out_blob,exec_net,labels_map,Nn,Nc,Nh,Nw
                 ie,net,input_blob,out_blob,exec_net,labels_map = getmodel(f'{name}',"CPU",None)
@@ -103,7 +97,7 @@ def Inference(mpIndex,mpStep,mpImage,mpTime,qxml):
         if mpStep.value == 1:
             tt0 = time.time()
             img2 = cv2.resize(img, (Nw, Nh))
-            if Nc==1: img2 = cv2.cvtColor(img2, cv2.COLOR_RGB2GRAY).reshape(Nh, Nw, 1)
+            if Nc==1: img2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY).reshape(Nh, Nw, 1)
             img2 = img2.transpose((2, 0, 1)).reshape(Nn, Nc, Nh, Nw)
             res = exec_net.infer(inputs={input_blob: img2})
             if len(res[out_blob][0].shape)==1:
@@ -136,16 +130,13 @@ def yolov3(mpIndex,mpStep,mpImage,mpTime,qxml):
             time.sleep(0.001)
             continue
         if qxml.qsize()>0:
-            lastname = name
-            name = qxml.get()
+            lastname,name = name,qxml.get()
             if name != "None" and lastname != name:
                 ie,net,input_blob,out_blob,exec_net,labels_map = getmodel(f'{name}',"CPU",None)
                 Nn, Nc, Nh, Nw = net.inputs[input_blob].shape
         if mpStep.value == 1:
             tt0 = time.time()
-            img2 = cv2.resize(img, (Nw, Nh))
-            if Nc==1: img2 = cv2.cvtColor(img2, cv2.COLOR_RGB2GRAY).reshape(Nh, Nw, 1)
-            img2 = img2.transpose((2, 0, 1)).reshape(Nn, Nc, Nh, Nw)
+            img2 = cv2.resize(img, (Nw, Nh)).transpose((2, 0, 1)).reshape(Nn, Nc, Nh, Nw)
             res = exec_net.infer(inputs={input_blob: img2})
             if "yolo" in name:
                 ih,iw = img.shape[:-1]
@@ -165,61 +156,49 @@ def mpSave(name,img):
     cv2.imwrite(name,img)
 def GetFrame():
     global cap, ret, frame,bGet
-    vsource,fps = 0,0
-    lastput = time.time()
+    vsource = 0
     while bRuning:
         if qSource.qsize()>0:
             cap = cv2.VideoCapture(qSource.get()) 
-            fps = cap.get(cv2.CAP_PROP_FPS)
         ret, frame = cap.read()
         bGet = True
         if ret:
-            if frame.shape[0]!=640: frame = cv2.resize(frame,(640,480))
-            if fps>0:
-                t = 0.015-(time.time()-lastput)
-                if t>0 and t<0.02: time.sleep(t)
-            lastput = time.time()
+            if frame.shape[0]!=640: 
+                frame = cv2.resize(frame,(640,480))
         else:
-            cap = cv2.VideoCapture(vsource)
-            time.sleep(0.01)
-            fps,vsource = 0, vsource+1
-            if vsource>10: vsource=0
+            cap,vsource = cv2.VideoCapture(vsource),vsource+1 if vsource<10 else 0
+            time.sleep(0.005)
 def KeyPress(event=None):
     key = event.keysym
-    if key=='s' or key=='space': button_save_click()
-    elif key=='c': button_continue_click()
+    if key=='s' or key=='space': save_click()
+    elif key=='c' or key=='Return': continue_click()
     elif key=='q' or key=='Escape': Exit()
-def button_save_click():
+def save_click():
     global last_time,run_p,run_all,interval_time,znum
     if not bSave:
         interval_time,run_p,run_all,znum = 0,0,1,1
         last_time = time.time()-0.001
         set_state(False)
-def button_continue_click():
+def continue_click():
     global last_time,run_p,run_all,interval_time,znum,zdir
     if not bSave:
         interval_time,run_p,run_all,znum,zdir = 1/image_sec,0,continue_time*image_sec,1,1
         last_time = time.time()-interval_time-0.001
         set_state(False)
         while os.path.isdir(f'{zdir:03}'): zdir+=1
-def scale_interval_scroll(v):
+def interval_scroll(v):
     global image_sec
     image_sec = int(v)
     scale_interval.config(label=f'save {v} image/sec')
-def scale_continue_scroll(v):
+def continue_scroll(v):
     global continue_time
     continue_time = int(v)
     scale_continue.config(label=f'continue save {v} sec')
 def set_state(bstate):
     global bSave
-    if bstate:
-        bSave=False
-        scale_interval['state'] = scale_continue['state'] = 'normal'
-        button_save['state'] = button_continue['state'] = 'normal'
-    else:
-        bSave=True
-        scale_interval['state'] = scale_continue['state'] = 'disable'
-        button_save['state'] = button_continue['state'] = 'disable'
+    bSave = not bstate
+    scale_interval['state'] = scale_continue['state'] = 'normal' if bstate else 'disable'
+    button_save['state'] = button_continue['state'] = 'normal' if bstate else 'disable'
 def menu_click():
     global bInference
     scmd = menuVar.get()
@@ -227,22 +206,18 @@ def menu_click():
         mpIndex.value = 1 if scmd.endswith("yolov3") else 0
         bInference = scmd!="None"
         qxml.put(scmd)
-def dirfind(Dir,Ans,target,layer):
-    if len(Ans)>0: return
-    for s in os.listdir(Dir):
+def dirfind(ndir,dlist,target,layer):
+    if len(dlist)>0: return
+    for s in os.listdir(ndir):
         if s[0] == '.': continue
-        if target in s: Ans.append(os.path.join(Dir,s))
-        newDir=os.path.join(Dir,s)
-        if layer<6 and os.path.isdir(newDir): dirfind(newDir,Ans,target,layer+1)
-    return Ans
+        if target in s: dlist.append(os.path.join(ndir,s))
+        newDir=os.path.join(ndir,s)
+        if layer<6 and os.path.isdir(newDir): dirfind(newDir,dlist,target,layer+1)
+    return dlist
 def Exit():
-    global bRuning,bInference,qSource,qxml
+    global bRuning
     bRuning,bInference = False,False
-    time.sleep(0.4)
     mpStep.value = -1
-    mpInference.join()
-    del qSource,qxml
-    time.sleep(0.1)
     root.destroy()
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 def getmodel(name,device,cpu_extension):
@@ -272,33 +247,33 @@ def getmodel(name,device,cpu_extension):
     if os.path.exists(f'{name}.txt'):
         with open(f'{name}.txt', 'r') as f:
             labels_map = [x.strip() for x in f]
-    elif os.path.exists(f'{name}.pbtxt'):
-        labels_map = readpbtxt(f'{name}.pbtxt')
     else:
-        labels_map = None
+        labels_map = readpbtxt(f'{name}.pbtxt')
     return ie,net,input_blob,out_blob,exec_net,labels_map
 def readpbtxt(name):
     if not os.path.exists(name): return None
     log.info("Read pbtxt")
-    with open(name, 'r') as f: txt = f.read()
+    with open(name, 'r') as f: txt = f.read()[1:].split("item")
     search = "display_name:" if "display_name:" in txt else "name:"
-    pbid = [int(i.split()[0]) for i in txt[txt.find("id:")+3:].split("id:")]
-    pbname = [i.split('\"')[1] for i in txt[txt.find(search)+len(search):].split(search)]
+    pbid = [int(i.split('id:')[1].split()[0]) for i in txt]
+    pbname = [i.split(search)[1].split('\"')[1] for i in txt]
     labels_map = [pbname[pbid.index(i)] if i in pbid else i for i in range(max(pbid)+1)]
     return labels_map
 def readDLS(name):
-    sid,Out = name.split("/")[-4],""
-    x=dls_db["Project"].find_one({'_id':ObjectId(sid)})['config']['selectedLabels']
-    labels_map = [dls_db["DatasetLabel"].find_one({'_id':ObjectId(sid)})['name'] for sid in x]
-    del sid,Out,x
-    return labels_map
+    try:
+        sid,Out = name.split("/")[-4],""
+        x=dls_db["Project"].find_one({'_id':ObjectId(sid)})['config']['selectedLabels']
+        labels_map = [dls_db["DatasetLabel"].find_one({'_id':ObjectId(sid)})['name'] for sid in x]
+        del sid,Out,x
+        return labels_map
+    except:return None
 class YoloParams:
     def __init__(self, param):
-        self.num = 3 if 'num' not in param else int(param['num'])
-        self.coords = 4 if 'coords' not in param else int(param['coords'])
-        self.classes = 80 if 'classes' not in param else int(param['classes'])
-        self.anchors = [10.0, 13.0, 16.0, 30.0, 33.0, 23.0, 30.0, 61.0, 62.0, 45.0, 59.0, 119.0, 116.0, 90.0, 156.0, 198.0,
-                        373.0, 326.0] if 'anchors' not in param else [float(a) for a in param['anchors'].split(',')]
+        self.num = int(param['num']) if 'num' in param else 3
+        self.coords = int(param['coords']) if 'coords' in param else 4
+        self.classes = int(param['classes']) if 'classes' in param else 80
+        self.anchors = [float(a) for a in param['anchors'].split(',')] if 'anchors' in param else [10.0, 13.0, 16.0,
+                       30.0, 33.0, 23.0, 30.0, 61.0, 62.0, 45.0, 59.0, 119.0, 116.0, 90.0, 156.0, 198.0, 373.0, 326.0]
         self.isYoloV3 = 'mask' in param  # Weak way to determine but the only one.
         if self.isYoloV3:
             mask = [int(idx)*2 for idx in param['mask'].split(',')]
@@ -311,8 +286,7 @@ def parse_yolo_region(blob, params, threshold, net_h, net_w):
     side_square = grid_h * grid_w
     # ------------------------------------------- Parsing YOLO Region output -------------------------------------------
     for i in range(side_square):
-        row = i // grid_w
-        col = i % grid_w
+        row,col = i // grid_w, i % grid_w
         for n in range(params.num):
             scale = blob[n,4,row,col]
             if scale < threshold: continue
@@ -338,7 +312,6 @@ def intersection_over_union(box_1, box_2):
     w_overlap = min(xmax, xmax2) - max(xmin, xmin2)
     h_overlap = min(ymax, ymax2) - max(ymin, ymin2)
     if (w_overlap < 0 or h_overlap < 0): return 0
-
     area_overlap = w_overlap * h_overlap
     box_1_area = (ymax - ymin) * (xmax - xmin)
     box_2_area = (ymax2 - ymin2) * (xmax2 - xmin2)
@@ -346,7 +319,6 @@ def intersection_over_union(box_1, box_2):
     return 0 if area_union <= 0 else area_overlap / area_union
 def GetyoloAns(net,output,threshold, net_h, net_w):
     objects = list()
-    t0 = time.time()
     for layer_name, out_blob in output.items():
         layer_params = YoloParams(net.layers[layer_name].params)
         objects += parse_yolo_region(out_blob[0], layer_params, threshold, net_h, net_w)
@@ -362,50 +334,46 @@ def GetyoloAns(net,output,threshold, net_h, net_w):
     return np.array(objects)
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 if __name__ == '__main__':
-    log.basicConfig(format="[ %(levelname)s ] %(message)s", level=log.INFO, stream=sys.stdout)
+    log.basicConfig(format="[ %(levelname)s ] %(message)s", level=log.INFO)
     DLS_home = dirfind("/home/",[],"NNFramework",0)[0]+"/tf/datasets/"
-    DLS_end = "/model/frozen_FP32/frozen_inference_graph"
-    DLS_label = "/label/label.pbtxt"
+    DLS_end,DLS_label = "/model/frozen_FP32/frozen_inference_graph","/label/label.pbtxt"
     dls_db = pymongo.MongoClient('mongodb://localhost:27017/',connect=False)["dls"]
     # Start Process
     qSource,qxml = mp.Queue(10),mp.Queue(10)
     mpImage = mp.Array('b', 640*480*3, lock=False) # 'b' 1 byte
     mpStep,mpIndex,mpTime = mp.Value('i', 0),mp.Value('i', 0),mp.Value('f', 0.0)
     npImage = np.frombuffer(mpImage,dtype=np.uint8)
-    mpInference = mp.Process(name='Inference',target=Inference, args=(mpIndex,mpStep,mpImage,mpTime,qxml),daemon=True)
-    mpInference.start()
-    mpyolo = mp.Process(name='yolov3',target=yolov3, args=(mpIndex,mpStep,mpImage,mpTime,qxml),daemon=True)
-    mpyolo.start()
+    mp.Process(name='Inference',target=Inference, args=(mpIndex,mpStep,mpImage,mpTime,qxml),daemon=True).start()
+    mp.Process(name='yolov3',target=yolov3, args=(mpIndex,mpStep,mpImage,mpTime,qxml),daemon=True).start()
     # Start Tkinter
-    root = Tk()
+    root = tk.Tk()
     root.title("Capture tool")
     root.bind("<Key>",KeyPress)
     root.protocol("WM_DELETE_WINDOW", Exit)
     # add 
-    scale_interval = Scale(root, label='save 1 image/sec', from_=1, to=30, orient=HORIZONTAL,length=480, showvalue=0, tickinterval=2, command=scale_interval_scroll)
+    scale_interval = tk.Scale(root, label='save 1 image/sec', from_=1, to=30, orient=tk.HORIZONTAL,length=480, showvalue=0, tickinterval=2, command=interval_scroll)
     scale_interval.grid(row=0,columnspan=2)
     scale_interval.set(10)
-    scale_continue = Scale(root, label='continue save 1 sec', from_=1, to=60, orient=HORIZONTAL,length=480, showvalue=0, tickinterval=4, command=scale_continue_scroll)
+    scale_continue = tk.Scale(root, label='continue save 1 sec', from_=1, to=60, orient=tk.HORIZONTAL,length=480, showvalue=0, tickinterval=4, command=continue_scroll)
     scale_continue.grid(row=1,columnspan=2)
     scale_continue.set(10)
-    picturebox = Label(root,text = '', compound='center', font=("Times", 150),fg="white") 
+    picturebox = tk.Label(root,text = '', compound='center', font=("Times", 150),fg="white") 
     picturebox.grid(row=2,columnspan=2,padx=20)
-    button_save = Button(root,text = 'save image',width=30, height=5,command = button_save_click)
+    button_save = tk.Button(root,text = 'save image',width=30, height=5,command = save_click)
     button_save.grid(row=3,column=0,padx=20,pady=5,sticky='w')
-    button_continue = Button(root,text = 'continue save',width=30, height=5,command = button_continue_click)
+    button_continue = tk.Button(root,text = 'continue save',width=30, height=5,command = continue_click)
     button_continue.grid(row=3,column=1,padx=20,pady=5,sticky='e')
-    label_FPS = Label(root,text = '') 
+    label_FPS = tk.Label(root,text = '') 
     label_FPS.grid(row=4,column=0,sticky='w')
-    label_Time = Label(root,text = '') 
-    label_Time.grid(row=1,columnspan=2,sticky=W+S)
-    label_message = Label(root,text = '') 
+    label_Time = tk.Label(root,text = '') 
+    label_Time.grid(row=1,columnspan=2,sticky=tk.W+tk.S)
+    label_message = tk.Label(root,text = '') 
     label_message.grid(row=4,column=1,sticky='e')
     # add Menu
-    menu0 = Menu(root)
+    menu0 = tk.Menu(root)
     root.config(menu=menu0)
-    menuVar = StringVar()
-    menuVar.set(1)
-    Tmenu = Menu(menu0,tearoff=0)
+    menuVar = tk.StringVar()
+    Tmenu = tk.Menu(menu0,tearoff=0)
     menu0.add_cascade(label="Read xml",menu=Tmenu)
     Tmenu.add_radiobutton(label="None",command=menu_click,variable=menuVar,value="None")
     local_xml,DLS_xml="",""
